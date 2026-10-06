@@ -6,13 +6,13 @@ import type { LogCategory } from '@/lib/log-categories';
 
 /** Peta tabKey (dihantar AI) → nilai kategori dalam borang. */
 export const TAB_KEY_TO_CATEGORY: Record<string, LogCategory> = {
-  pembelajaran: 'learning',
-  aktiviti_luar: 'outdoor',
+  aktiviti_anak: 'child_activity',
+  pembelajaran: 'child_activity',
+  aktiviti_luar: 'child_activity',
   makanan: 'meals',
   tidur: 'sleep',
   kehadiran_suhu: 'attendance',
   kesihatan_ubat: 'health',
-  makluman_harian: 'parent_message',
 };
 
 export interface VoiceLogResult {

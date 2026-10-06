@@ -1,23 +1,19 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  BellRing,
   BookOpen,
   Moon,
   Stethoscope,
-  Sun,
   Thermometer,
   UtensilsCrossed,
 } from 'lucide-react';
 
-/** Tujuh kategori log harian PAPN. */
+/** Lima kategori log harian PAPN. */
 export type LogCategory =
-  | 'learning'
-  | 'outdoor'
+  | 'child_activity'
   | 'meals'
   | 'sleep'
   | 'attendance'
-  | 'health'
-  | 'parent_message';
+  | 'health';
 
 /**
  * Chip tindakan pintar — menetapkan nilai tertentu pada medan borang.
@@ -50,14 +46,14 @@ export interface LogField {
 }
 
 /**
- * Definisi lengkap 7 kategori log harian PAPN.
+ * Definisi lengkap 5 kategori log harian PAPN.
  * Chip pantas menggunakan istilah Bahasa Melayu baku (KPM).
  */
 export const LOG_CATEGORIES: LogCategoryDef[] = [
   {
-    value: 'learning',
-    label: 'Pembelajaran',
-    description: 'Aktiviti pembelajaran dan perkembangan',
+    value: 'child_activity',
+    label: 'Aktiviti Anak',
+    description: 'Aktiviti pembelajaran, perkembangan dan aktiviti luar',
     icon: BookOpen,
     tone: 'bg-brand-600',
     chips: [
@@ -66,28 +62,13 @@ export const LOG_CATEGORIES: LogCategoryDef[] = [
       { label: 'Aktiviti mewarna', fieldValues: { activity: 'Aktiviti mewarna', participation: 'Aktif' } },
       { label: 'Menyusun blok', fieldValues: { activity: 'Menyusun blok', participation: 'Aktif' } },
       { label: 'Bercerita bersama rakan', fieldValues: { activity: 'Bercerita bersama rakan', participation: 'Sangat aktif' } },
+      { label: 'Bermain di taman', fieldValues: { activity: 'Bermain di taman', participation: 'Sangat aktif', duration: '30' } },
+      { label: 'Bermain bola', fieldValues: { activity: 'Bermain bola', participation: 'Aktif', duration: '30' } },
+      { label: 'Senaman pagi', fieldValues: { activity: 'Senaman pagi', participation: 'Aktif', duration: '15' } },
     ],
     fields: [
       { name: 'activity', label: 'Aktiviti', type: 'text', placeholder: 'Contoh: Mengenal huruf A-Z' },
       { name: 'participation', label: 'Penglibatan', type: 'select', options: ['Sangat aktif', 'Aktif', 'Sederhana', 'Perlu bimbingan'] },
-      { name: 'notes', label: 'Catatan', type: 'textarea', placeholder: 'Catatan tambahan…' },
-    ],
-  },
-  {
-    value: 'outdoor',
-    label: 'Aktiviti Luar',
-    description: 'Permainan dan aktiviti luar bilik',
-    icon: Sun,
-    tone: 'bg-amber-500',
-    chips: [
-      { label: 'Bermain di taman', fieldValues: { activity: 'Bermain di taman', duration: '30' } },
-      { label: 'Aktiviti berjalan', fieldValues: { activity: 'Aktiviti berjalan', duration: '20' } },
-      { label: 'Bermain bola', fieldValues: { activity: 'Bermain bola', duration: '30' } },
-      { label: 'Aktiviti berpasir', fieldValues: { activity: 'Aktiviti berpasir', duration: '25' } },
-      { label: 'Senaman pagi', fieldValues: { activity: 'Senaman pagi', duration: '15' } },
-    ],
-    fields: [
-      { name: 'activity', label: 'Aktiviti', type: 'text', placeholder: 'Contoh: Bermain di taman' },
       { name: 'duration', label: 'Tempoh', type: 'number', suffix: 'minit' },
       { name: 'notes', label: 'Catatan', type: 'textarea', placeholder: 'Catatan tambahan…' },
     ],
@@ -166,35 +147,6 @@ export const LOG_CATEGORIES: LogCategoryDef[] = [
       { name: 'condition', label: 'Keadaan', type: 'text', placeholder: 'Contoh: Batuk dan selesema' },
       { name: 'medicine', label: 'Ubat Diberi', type: 'text', placeholder: 'Contoh: Paracetamol 5ml' },
       { name: 'notes', label: 'Catatan', type: 'textarea', placeholder: 'Catatan tambahan…' },
-    ],
-  },
-  {
-    value: 'parent_message',
-    label: 'Makluman Harian',
-    description: 'Arahan & makluman ibu bapa semasa menghantar anak',
-    icon: BellRing,
-    tone: 'bg-purple-600',
-    chips: [
-      {
-        label: 'Bawa 5 keping lampin & baju gantian',
-        fieldValues: { message: 'Bawa 5 keping lampin dan baju gantian.', action_status: 'Telah Dimaklumkan' },
-      },
-      {
-        label: 'Akan balik awal (pukul 2 petang)',
-        fieldValues: { message: 'Akan balik awal pukul 2 petang.', action_status: 'Telah Dimaklumkan' },
-      },
-      {
-        label: 'Sila berikan ubat selepas makan tengah hari',
-        fieldValues: { message: 'Sila berikan ubat selepas makan tengah hari.', action_status: 'Perlu Tindakan' },
-      },
-      {
-        label: 'Kurang sihat / sedikit batuk pagi ini',
-        fieldValues: { message: 'Murid kurang sihat / sedikit batuk pagi ini.', action_status: 'Perlu Tindakan' },
-      },
-    ],
-    fields: [
-      { name: 'message', label: 'Perkara / Nota Ibu Bapa', type: 'textarea', placeholder: 'Contoh: Sila berikan ubat selepas makan tengah hari' },
-      { name: 'action_status', label: 'Status Tindakan Guru', type: 'select', options: ['Telah Dimaklumkan', 'Selesai', 'Perlu Tindakan'] },
     ],
   },
 ];

@@ -10,37 +10,31 @@ export const runtime = 'nodejs';
  * Setiap kunci memetakan kepada satu kategori log dalam LOG_CATEGORIES.
  */
 const TAB_KEYS = [
-  'pembelajaran',
-  'aktiviti_luar',
+  'aktiviti_anak',
   'makanan',
   'tidur',
   'kehadiran_suhu',
   'kesihatan_ubat',
-  'makluman_harian',
 ] as const;
 
 type TabKey = (typeof TAB_KEYS)[number];
 
 /** Peta tabKey → nilai kategori dalam LOG_CATEGORIES. */
 const TAB_TO_CATEGORY: Record<TabKey, string> = {
-  pembelajaran: 'learning',
-  aktiviti_luar: 'outdoor',
+  aktiviti_anak: 'child_activity',
   makanan: 'meals',
   tidur: 'sleep',
   kehadiran_suhu: 'attendance',
   kesihatan_ubat: 'health',
-  makluman_harian: 'parent_message',
 };
 
 /** Medan yang sah bagi setiap tab (mengikut definisi borang). */
 const TAB_FIELDS: Record<TabKey, string[]> = {
-  pembelajaran: ['activity', 'participation', 'notes'],
-  aktiviti_luar: ['activity', 'duration', 'notes'],
+  aktiviti_anak: ['activity', 'participation', 'duration', 'notes'],
   makanan: ['meal', 'appetite', 'notes'],
   tidur: ['duration', 'quality', 'notes'],
   kehadiran_suhu: ['status', 'temperature', 'notes'],
   kesihatan_ubat: ['condition', 'medicine', 'notes'],
-  makluman_harian: ['message', 'action_status'],
 };
 
 /** Skema satu tab — semua medan opsional (nullable). */
@@ -89,13 +83,11 @@ Tugas anda: tukar pertuturan guru dalam Bahasa Melayu kepada data log harian ber
 DIHALAKAN ke tab yang betul (penghalaan pintar berbilang tab).
 
 Tab yang tersedia (gunakan kunci ini dalam data_by_tab):
-- pembelajaran: aktiviti pembelajaran, topik belajar (cth: mengenal huruf, menggunting, melukis, mewarna, menyanyi)
-- aktiviti_luar: permainan luar, sukan, aktiviti fizikal (cth: padang, taman, bermain air, bola)
+- aktiviti_anak: aktiviti pembelajaran, topik belajar dan aktiviti luar/fizikal (cth: mengenal huruf, menggunting, melukis, mewarna, menyanyi, bermain di taman, bola, senaman)
 - makanan: selera makan, jenis hidangan, nota makanan (cth: makan, minum, suap, kenyang, susu)
 - tidur: tempoh tidur, kualiti tidur (cth: tidur, lelap, rehat)
 - kehadiran_suhu: suhu badan, nota kehadiran (cth: suhu, 37.5, demam, hadir, tidak hadir)
 - kesihatan_ubat: masalah kesihatan, ubat yang diberi (cth: batuk, selesema, sakit, ubat)
-- makluman_harian: nota ibu bapa, baju gantian, lampin (cth: ibu bapa minta, bawa lampin)
 
 Peraturan:
 1. Gunakan Bahasa Melayu baku (istilah KPM). JANGAN gunakan istilah Indonesia.
@@ -343,11 +335,11 @@ function keywordFallbackParse(
     const s = raw.toLowerCase();
     if (!s) continue;
 
-    // ── Pembelajaran (keutamaan tinggi) ─────────────────────────
-    // Diperiksa DAHULU supaya penanda kategori "pembelajaran" dan kata
-    // tindakan pembelajaran tidak dirampas oleh tab lain (cth: "makanan",
-    // "aktiviti luar"). Penanda "pembelajaran" dikesan sebelum dibersihkan.
+    // ── Aktiviti Anak (keutamaan tinggi) ────────────────────────
+    // Diperiksa DAHULU supaya penanda kategori dan kata tindakan aktiviti
+    // tidak dirampas oleh tab lain (cth: "makanan", "aktiviti luar").
     if (
+      s.includes('aktiviti anak') ||
       s.includes('pembelajaran') ||
       s.includes('pelajaran') ||
       s.includes('belajar') ||
@@ -367,13 +359,22 @@ function keywordFallbackParse(
       s.includes('huruf') ||
       s.includes('abjad') ||
       s.includes('nombor') ||
-      s.includes('buku')
+      s.includes('buku') ||
+      s.includes('aktiviti luar') ||
+      s.includes('padang') ||
+      s.includes('bermain air') ||
+      s.includes('kolam') ||
+      s.includes('taman') ||
+      s.includes('bola') ||
+      s.includes('senaman') ||
+      s.includes('berlari') ||
+      s.includes('melompat')
     ) {
       const clean = cleanSnippet(raw, knownStudentNames);
       if (clean) {
         // Isi KEDUA-DUA medan supaya Aktiviti dan Catatan sepadan.
-        push('pembelajaran', { activity: clean });
-        pushNote('pembelajaran', clean);
+        push('aktiviti_anak', { activity: clean });
+        pushNote('aktiviti_anak', clean);
       }
       continue;
     }
@@ -456,45 +457,11 @@ function keywordFallbackParse(
       continue;
     }
 
-    // ── Aktiviti Luar ───────────────────────────────────────────
-    if (
-      s.includes('aktiviti luar') ||
-      s.includes('padang') ||
-      s.includes('bermain air') ||
-      s.includes('kolam') ||
-      s.includes('taman') ||
-      s.includes('bola') ||
-      s.includes('senaman') ||
-      s.includes('berlari') ||
-      s.includes('melompat')
-    ) {
-      const clean = cleanSnippet(raw, knownStudentNames);
-      if (clean) {
-        push('aktiviti_luar', { activity: clean });
-        pushNote('aktiviti_luar', clean);
-      }
-      continue;
-    }
-
-    // ── Makluman Harian ─────────────────────────────────────────
-    if (
-      s.includes('ibu bapa') ||
-      s.includes('penjaga') ||
-      s.includes('lampin') ||
-      s.includes('baju gantian') ||
-      s.includes('mesej') ||
-      s.includes('pesan')
-    ) {
-      const clean = cleanSnippet(raw, knownStudentNames);
-      if (clean) push('makluman_harian', { message: clean });
-      continue;
-    }
-
-    // Cebisan tidak dikenali — letak dalam pembelajaran sebagai lalai.
+    // Cebisan tidak dikenali — letak dalam aktiviti anak sebagai lalai.
     const fallbackClean = cleanSnippet(raw, knownStudentNames);
     if (fallbackClean) {
-      push('pembelajaran', { activity: fallbackClean });
-      pushNote('pembelajaran', fallbackClean);
+      push('aktiviti_anak', { activity: fallbackClean });
+      pushNote('aktiviti_anak', fallbackClean);
     }
   }
 
@@ -515,7 +482,7 @@ function keywordFallbackParse(
       'Makan', 'Tidur', 'Hadir', 'Tidak', 'Sila', 'Guru', 'Murid',
       'Kelas', 'Hari', 'Pagi', 'Petang', 'Malam', 'Suhu', 'Ubat',
       'Aktiviti', 'Pembelajaran', 'Kesihatan', 'Makluman', 'Luar',
-      'Makanan', 'Bermain', 'Kolam', 'Taman',
+      'Makanan', 'Bermain', 'Kolam', 'Taman', 'Anak',
     ]);
     for (const n of nameMatches) {
       if (!stopWords.has(n) && !studentNames.includes(n)) studentNames.push(n);
@@ -527,7 +494,7 @@ function keywordFallbackParse(
 /**
  * Bina respons sandaran yang sentiasa berjaya apabila ada transkripsi.
  * Jika penghurai kata kunci tidak dapat mengisi mana-mana tab, teks penuh
- * dimasukkan ke dalam `pembelajaran.notes` supaya pertuturan guru tidak hilang.
+ * dimasukkan ke dalam `aktiviti_anak.notes` supaya pertuturan guru tidak hilang.
  */
 function buildFallbackResponse(transcript: string, knownStudentNames: string[] = []) {
   const fallback = keywordFallbackParse(transcript, knownStudentNames);
@@ -537,7 +504,7 @@ function buildFallbackResponse(transcript: string, knownStudentNames: string[] =
     (tab) => tab && Object.keys(tab).length > 0
   );
   if (!hasAnyTab) {
-    dataByTab.pembelajaran = { notes: transcript };
+    dataByTab.aktiviti_anak = { notes: transcript };
   }
 
   return NextResponse.json({
@@ -675,9 +642,9 @@ export async function POST(request: NextRequest) {
       if (Object.keys(clean).length > 0) dataByTab[key] = clean;
     }
 
-    // Jika AI tidak mengisi mana-mana tab, masukkan transkripsi ke pembelajaran.
+    // Jika AI tidak mengisi mana-mana tab, masukkan transkripsi ke aktiviti_anak.
     if (Object.keys(dataByTab).length === 0 && cleanTranscript) {
-      dataByTab.pembelajaran = { notes: cleanTranscript };
+      dataByTab.aktiviti_anak = { notes: cleanTranscript };
     }
 
     return NextResponse.json({

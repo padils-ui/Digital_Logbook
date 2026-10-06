@@ -13,9 +13,11 @@
     "@google/genai": "^2.24.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
+    "browser-image-compression": "^2.0.2",
     "googleapis": "^182.0.0",
     "lucide-react": "^0.451.0",
     "next": "14.2.15",
+    "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

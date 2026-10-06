@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import imageCompression from 'browser-image-compression';
 import {
   Camera,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   Save,
   TriangleAlert,
@@ -46,12 +48,16 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
   );
   // Foto berasingan bagi setiap tab kategori: { [category]: dataUrl }
   const [tabPhotos, setTabPhotos] = useState<Record<string, string>>({});
+  // Kategori yang sedang memampatkan imej (untuk penunjuk memuat).
+  const [compressing, setCompressing] = useState<LogCategory | null>(null);
   // Kategori yang menerima data AI — untuk penunjuk pada tab.
   const [aiTabs, setAiTabs] = useState<LogCategory[]>([]);
   const [message, setMessage] = useState<{
     type: 'ok' | 'error';
     text: string;
   } | null>(null);
+  // Pautan folder Google Drive selepas simpan berjaya.
+  const [driveLink, setDriveLink] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Ref untuk input fail foto bagi setiap tab
@@ -103,15 +109,33 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
     setSelectedIds([]);
   }
 
-  // Kendalikan muat naik foto — simpan ke tabPhotos[category]
+  // Kendalikan muat naik foto — mampatkan di klien dahulu, simpan ke tabPhotos[category]
   const handlePhotoChange = useCallback(
-    (cat: LogCategory) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    (cat: LogCategory) => async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () =>
-        setTabPhotos((prev) => ({ ...prev, [cat]: reader.result as string }));
-      reader.readAsDataURL(file);
+
+      setCompressing(cat);
+      setMessage(null);
+      try {
+        // Mampatkan imej: maksimum 0.5MB dan lebar/tinggi maksimum 1200px.
+        const compressed = await imageCompression(file, {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 1200,
+          useWebWorker: true,
+          initialQuality: 0.8,
+        });
+
+        const dataUrl = await imageCompression.getDataUrlFromFile(compressed);
+        setTabPhotos((prev) => ({ ...prev, [cat]: dataUrl }));
+      } catch {
+        setMessage({
+          type: 'error',
+          text: 'Gagal memampatkan gambar. Sila cuba gambar lain.',
+        });
+      } finally {
+        setCompressing(null);
+      }
     },
     []
   );
@@ -178,6 +202,7 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
 
   function handleSubmit() {
     setMessage(null);
+    setDriveLink(null);
 
     // ── Pengesahan klien: murid mesti dipilih ──────────────────
     if (!selectedIds.length) {
@@ -200,41 +225,68 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
       return;
     }
 
-    const catValues = values[category] ?? {};
-    const hasContent = Object.values(catValues).some((v) => v.trim() !== '');
-    if (!hasContent) {
+    // Kumpul semua entri dari semua tab yang mempunyai kandungan
+    const entriesToSave: any[] = [];
+    
+    LOG_CATEGORIES.forEach((catDef) => {
+      const catKey = catDef.value;
+      const catValues = values[catKey] ?? {};
+      const hasContent = Object.values(catValues).some((v) => v.toString().trim() !== '');
+      const photo = tabPhotos[catKey] ?? null;
+
+      if (hasContent || photo) {
+        entriesToSave.push({
+          category: catKey,
+          content: catValues,
+          imageDataUrl: photo,
+        });
+      }
+    });
+
+    if (!entriesToSave.length) {
       setMessage({
         type: 'error',
-        text: 'Sila isi sekurang-kurangnya satu medan log.',
+        text: 'Sila isi sekurang-kurangnya satu medan log dalam mana-mana tab.',
       });
       return;
     }
 
-    const photoUrl = tabPhotos[category];
-
     startTransition(async () => {
-      const result = await saveDailyLogs({
-        studentIds: selectedIds,
-        category,
-        logDate,
-        content: catValues,
-        mediaUrls: photoUrl ? [photoUrl] : [],
-      });
+      try {
+        const result = await saveDailyLogs({
+          studentIds: selectedIds,
+          logDate,
+          entries: entriesToSave,
+        });
 
-      if (result.ok) {
+        if (result.success === false) {
+          setMessage({
+            type: 'error',
+            text: result.error ?? 'Gagal menyimpan log.',
+          });
+          return;
+        }
+
         setMessage({
           type: 'ok',
-          text: `Log berjaya disimpan untuk ${result.saved} murid.`,
+          text: 'Log berjaya disimpan',
         });
-        // Kosongkan medan tab aktif dan fotonya sahaja
-        setValues((prev) => ({ ...prev, [category]: {} }));
+        setDriveLink(result.driveFolderUrl ?? null);
+        
+        // Kosongkan semua medan dan foto yang telah disimpan
+        setValues({});
+        setTabPhotos({});
         setSelectedIds([]);
         setBatchMode(false);
-        removePhoto(category);
-      } else {
+      } catch (err) {
+        // Jaring keselamatan: server action tidak sepatutnya melontar, tetapi
+        // jika ia berlaku, paparkan toast merah dan kekal di halaman ini.
         setMessage({
           type: 'error',
-          text: result.error ?? 'Gagal menyimpan log.',
+          text:
+            err instanceof Error
+              ? err.message
+              : 'Ralat tidak dijangka semasa menyimpan log.',
         });
       }
     });
@@ -500,7 +552,14 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
               <span className="font-normal text-slate-400">(Opsional)</span>
             </p>
 
-            {tabPhotos[category] ? (
+            {compressing === category ? (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3">
+                <Loader2 className="h-5 w-5 animate-spin text-brand-600" aria-hidden />
+                <span className="text-xs text-slate-600">
+                  Memampatkan gambar…
+                </span>
+              </div>
+            ) : tabPhotos[category] ? (
               <div className="relative inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -576,6 +635,28 @@ export function LogEntryForm({ students, classNames }: LogEntryFormProps) {
           )}
           {message.text}
         </p>
+      )}
+
+      {/* ── Notifikasi kejayaan + pautan folder Google Drive ────── */}
+      {driveLink && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3"
+        >
+          <div className="flex items-center gap-2 text-sm text-emerald-800">
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+            <span>Fail log telah dimuat naik ke Google Drive.</span>
+          </div>
+          <a
+            href={driveLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700"
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            Buka Folder Google Drive
+          </a>
+        </div>
       )}
 
       <button

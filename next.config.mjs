@@ -11,6 +11,11 @@ const withPWA = (await import('next-pwa')).default({
 
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
