@@ -27,7 +27,7 @@ const ROLES: {
   },
   {
     value: 'teacher',
-    label: 'Guru / Pengasuh',
+    label: 'Pendidik / Pengasuh',
     description: 'Rekod log harian dan insiden',
     icon: GraduationCap,
   },

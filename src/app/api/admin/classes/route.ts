@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ class: data });
 }
 
-/** DELETE — padam kelas (dengan perlindungan murid ditugaskan). */
+/** DELETE — padam kelas (dengan perlindungan anak ditugaskan). */
 export async function DELETE(request: NextRequest) {
   const { profile, res } = await requireAdmin();
   if (!profile) return res;
@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
   if ((count ?? 0) > 0) {
     return NextResponse.json(
       {
-        error: `Kelas ini masih mempunyai ${count} murid. Sila pindahkan murid terlebih dahulu.`,
+        error: `Kelas ini masih mempunyai ${count} anak. Sila pindahkan anak terlebih dahulu.`,
       },
       { status: 409 }
     );

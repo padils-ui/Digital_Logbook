@@ -5,7 +5,7 @@ import { StudentTable } from '@/components/admin/student-table';
 import { ensureDefaultClasses } from './actions';
 import type { ClassRow, Student } from '@/lib/types';
 
-export const metadata: Metadata = { title: 'Pengurusan Murid & Ibu Bapa' };
+export const metadata: Metadata = { title: 'Pengurusan Anak & Ibu Bapa' };
 
 export default async function AdminStudentsPage() {
   const profile = await getCurrentUser();
@@ -44,10 +44,10 @@ export default async function AdminStudentsPage() {
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-          Pengurusan Murid &amp; Ibu Bapa
+          Pengurusan Anak &amp; Ibu Bapa
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Urus pendaftaran murid, kelas dan maklumat penjaga.
+          Urus pendaftaran anak, kelas dan maklumat penjaga.
         </p>
       </header>
 

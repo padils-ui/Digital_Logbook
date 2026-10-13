@@ -12,7 +12,7 @@ import {
 
 interface ClassManagerProps {
   classes: ClassRow[];
-  /** Bilangan murid bagi setiap kelas: { [classId]: count }. */
+  /** Bilangan anak bagi setiap kelas: { [classId]: count }. */
   studentCounts: Record<string, number>;
 }
 
@@ -108,7 +108,7 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
                   Kumpulan Umur
                 </th>
                 <th scope="col" className="px-4 py-3 font-semibold">
-                  Bilangan Murid
+                  Bilangan Anak
                 </th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
                   Tindakan
@@ -139,7 +139,7 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 text-slate-700">
                           <Users className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                          {count} murid
+                          {count} anak
                         </span>
                       </td>
                       <td className="px-4 py-3">

@@ -79,7 +79,7 @@ async function isClassValid(
   return Boolean(data);
 }
 
-/** Tambah murid baharu untuk tenant pengguna. */
+/** Tambah anak baharu untuk tenant pengguna. */
 export async function createStudent(
   input: StudentInput
 ): Promise<StudentActionResult> {
@@ -90,7 +90,7 @@ export async function createStudent(
 
   const fullName = (input.full_name ?? '').trim();
   if (!fullName) {
-    return { ok: false, error: 'Nama penuh murid diperlukan.' };
+    return { ok: false, error: 'Nama penuh anak diperlukan.' };
   }
 
   if (!(await isClassValid(input.class_id, profile.tenant_id))) {
@@ -114,14 +114,14 @@ export async function createStudent(
   });
 
   if (error) {
-    return { ok: false, error: `Gagal menambah murid: ${error.message}` };
+    return { ok: false, error: `Gagal menambah anak: ${error.message}` };
   }
 
   revalidatePath('/admin/students');
   return { ok: true };
 }
 
-/** Kemas kini murid sedia ada (disahkan milik tenant pengguna). */
+/** Kemas kini anak sedia ada (disahkan milik tenant pengguna). */
 export async function updateStudent(
   studentId: string,
   input: StudentInput
@@ -133,7 +133,7 @@ export async function updateStudent(
 
   const fullName = (input.full_name ?? '').trim();
   if (!fullName) {
-    return { ok: false, error: 'Nama penuh murid diperlukan.' };
+    return { ok: false, error: 'Nama penuh anak diperlukan.' };
   }
 
   if (!(await isClassValid(input.class_id, profile.tenant_id))) {
@@ -159,14 +159,14 @@ export async function updateStudent(
     .eq('tenant_id', profile.tenant_id);
 
   if (error) {
-    return { ok: false, error: `Gagal mengemas kini murid: ${error.message}` };
+    return { ok: false, error: `Gagal mengemas kini anak: ${error.message}` };
   }
 
   revalidatePath('/admin/students');
   return { ok: true };
 }
 
-/** Padam murid (disahkan milik tenant pengguna). */
+/** Padam anak (disahkan milik tenant pengguna). */
 export async function deleteStudent(
   studentId: string
 ): Promise<StudentActionResult> {
@@ -183,7 +183,7 @@ export async function deleteStudent(
     .eq('tenant_id', profile.tenant_id);
 
   if (error) {
-    return { ok: false, error: `Gagal memadam murid: ${error.message}` };
+    return { ok: false, error: `Gagal memadam anak: ${error.message}` };
   }
 
   revalidatePath('/admin/students');

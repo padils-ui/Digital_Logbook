@@ -11,7 +11,7 @@ export const TAB_KEY_TO_CATEGORY: Record<string, LogCategory> = {
   aktiviti_luar: 'child_activity',
   makanan: 'meals',
   tidur: 'sleep',
-  kehadiran_suhu: 'attendance',
+  tingkah_laku: 'health',
   kesihatan_ubat: 'health',
 };
 

@@ -92,7 +92,7 @@ export async function updateClass(
 }
 
 /**
- * Padam kelas. Menyekat pemadaman jika masih ada murid ditugaskan
+ * Padam kelas. Menyekat pemadaman jika masih ada anak ditugaskan
  * kepada kelas ini (perlindungan integriti data).
  */
 export async function deleteClass(classId: string): Promise<ClassActionResult> {
@@ -101,7 +101,7 @@ export async function deleteClass(classId: string): Promise<ClassActionResult> {
 
   const admin = createAdminClient();
 
-  // Semak bilangan murid yang masih ditugaskan ke kelas ini.
+  // Semak bilangan anak yang masih ditugaskan ke kelas ini.
   const { count, error: countError } = await admin
     .from('students')
     .select('id', { count: 'exact', head: true })
@@ -109,13 +109,13 @@ export async function deleteClass(classId: string): Promise<ClassActionResult> {
     .eq('tenant_id', profile.tenant_id);
 
   if (countError) {
-    return { ok: false, error: `Gagal menyemak murid: ${countError.message}` };
+    return { ok: false, error: `Gagal menyemak anak: ${countError.message}` };
   }
 
   if ((count ?? 0) > 0) {
     return {
       ok: false,
-      error: `Kelas ini masih mempunyai ${count} murid. Sila pindahkan murid terlebih dahulu sebelum memadam.`,
+      error: `Kelas ini masih mempunyai ${count} anak. Sila pindahkan anak terlebih dahulu sebelum memadam.`,
     };
   }
 

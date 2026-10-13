@@ -7,7 +7,7 @@ import type { StudentInput } from '@/app/(dashboard)/admin/students/actions';
 
 interface StudentModalProps {
   open: boolean;
-  /** Murid yang disunting; null bermakna mod tambah. */
+  /** Anak yang disunting; null bermakna mod tambah. */
   student: Student | null;
   classes: ClassRow[];
   saving: boolean;
@@ -42,7 +42,7 @@ const EMPTY_FORM: FormState = {
   photo_url: '',
 };
 
-/** Dialog borang tambah / sunting murid. */
+/** Dialog borang tambah / sunting anak. */
 export function StudentModal({
   open,
   student,
@@ -55,7 +55,7 @@ export function StudentModal({
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Isi semula borang apabila modal dibuka atau murid berubah.
+  // Isi semula borang apabila modal dibuka atau anak berubah.
   useEffect(() => {
     if (!open) return;
     if (student) {
@@ -125,7 +125,7 @@ export function StudentModal({
             id="student-modal-title"
             className="text-base font-bold text-slate-900"
           >
-            {isEdit ? 'Sunting Murid' : 'Tambah Murid Baru'}
+            {isEdit ? 'Sunting Anak' : 'Tambah Anak Baru'}
           </h2>
           <button
             type="button"
@@ -147,14 +147,14 @@ export function StudentModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          {/* Gambar murid */}
+          {/* Gambar anak */}
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-100">
               {form.photo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={form.photo_url}
-                  alt="Pratonton gambar murid"
+                  alt="Pratonton gambar anak"
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -162,7 +162,7 @@ export function StudentModal({
               )}
             </div>
             <div className="flex flex-col gap-1">
-              <span className="label mb-0">Gambar Murid</span>
+              <span className="label mb-0">Gambar Anak</span>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -355,7 +355,7 @@ export function StudentModal({
               Batal
             </button>
             <button type="submit" className="btn" disabled={saving}>
-              {saving ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Tambah Murid'}
+              {saving ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Tambah Anak'}
             </button>
           </div>
         </form>

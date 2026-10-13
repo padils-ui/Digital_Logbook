@@ -13,6 +13,7 @@ import {
 } from '@/lib/google-drive';
 import { generateDailyLogPdf } from '@/lib/pdf-generator';
 import type { LogCategory } from '@/lib/log-categories';
+import type { DailyLogInput, DailyLogRow } from '@/types/logbook';
 
 /** ID folder root lalai jika tenant tidak mempunyai konfigurasi Drive. */
 const DEFAULT_DRIVE_ROOT_FOLDER_ID =
@@ -55,7 +56,7 @@ export interface SaveLogResult {
   success: boolean;
   saved?: number;
   error?: string;
-  /** Pautan terus ke folder Google Drive murid (jika berjaya dimuat naik). */
+  /** Pautan terus ke folder Google Drive anak (jika berjaya dimuat naik). */
   driveFolderUrl?: string;
 }
 
@@ -76,7 +77,6 @@ const AGGREGATE_CATEGORIES: LogCategory[] = [
   'child_activity',
   'meals',
   'sleep',
-  'attendance',
   'health',
 ];
 
@@ -89,29 +89,23 @@ const CATEGORY_TO_DB_ENUM: Record<LogCategory, string> = {
   child_activity: 'aktiviti_anak',
   meals: 'makanan',
   sleep: 'tidur',
-  attendance: 'kehadiran_suhu',
   health: 'kesihatan_ubat',
 };
 
 /**
  * Peta songsang: nilai enum DB → LogCategory TypeScript.
  * Digunakan semasa membaca baris dari `daily_logs` untuk agregasi.
+ *
+ * Nota: `kehadiran_suhu` sengaja tidak dipetakan — tab Kehadiran / Suhu telah
+ * dibuang daripada modul logbook, jadi baris sejarah kategori tersebut akan
+ * dilangkau (lihat amaran dalam aggregateLogContent).
  */
 const DB_ENUM_TO_CATEGORY: Record<string, LogCategory> = {
   aktiviti_anak: 'child_activity',
   makanan: 'meals',
   tidur: 'sleep',
-  kehadiran_suhu: 'attendance',
   kesihatan_ubat: 'health',
 };
-
-/** Satu baris log harian yang dibaca daripada jadual `daily_logs`. */
-interface DailyLogRow {
-  category: string;
-  content: Record<string, unknown> | null;
-  media_urls: string[] | null;
-  created_at: string;
-}
 
 /**
  * Gabungkan baris log bagi tarikh yang sama menjadi satu objek agregat
@@ -151,7 +145,6 @@ function aggregateLogContent(
     
     // Gabungkan kandungan kategori ini
     aggregated[category] = { ...(aggregated[category] ?? {}), ...row.content };
-    console.log(`[PDF Aggregation] Menambah data untuk ${category}:`, row.content);
   }
 
   return aggregated;
@@ -164,14 +157,12 @@ function aggregateLogContent(
 async function syncToDriveBackground(params: {
   tenantId: string;
   tenantName: string;
-  teacherId: string;
   teacherName: string;
   logDate: string;
   entries: CategoryEntry[];
   students: Array<{ id: string; full_name: string; class_id: string | null }>;
   classNames: Record<string, string>;
   logHarianFolderId: string;
-  insertedLogIds: string[]; // ID baris di Supabase yang perlu dikemas kini
 }) {
   const {
     tenantId,
@@ -182,10 +173,7 @@ async function syncToDriveBackground(params: {
     students,
     classNames,
     logHarianFolderId,
-    insertedLogIds,
   } = params;
-
-  console.log(`[DriveSync] Memulakan penyelarasan latar belakang untuk ${students.length} murid dan ${entries.length} kategori.`);
 
   const admin = createAdminClient();
   const logDateObj = new Date(logDate);
@@ -193,7 +181,7 @@ async function syncToDriveBackground(params: {
   const monthName = MONTH_NAMES_MS[logDateObj.getMonth()] ?? 'Januari';
   const cleanDate = logDate.slice(0, 10);
 
-  // Proses setiap murid secara selari
+  // Proses setiap anak secara selari
   await Promise.all(
     students.map(async (student) => {
       try {
@@ -201,7 +189,7 @@ async function syncToDriveBackground(params: {
           ? classNames[student.class_id] ?? 'Tanpa Kelas'
           : 'Tanpa Kelas';
 
-        // 1. Selesaikan folder murid
+        // 1. Selesaikan folder anak
         const studentFolderId = await getOrCreateStudentDriveFolder({
           tenantId,
           logHarianFolderId,
@@ -225,19 +213,37 @@ async function syncToDriveBackground(params: {
           }
         }
 
-        // B. Ambil SEMUA log bagi murid dan tarikh ini untuk menjana PDF lengkap.
+        // B. Ambil SEMUA log bagi anak dan tarikh ini untuk menjana PDF lengkap.
         const { data: allLogsRes } = await admin
           .from('daily_logs')
-          .select('id, category, content, media_urls, created_at')
+          .select('id, category, content, media_urls, created_at, parent_reviewed, parent_comment')
           .eq('tenant_id', tenantId)
           .eq('student_id', student.id)
           .eq('log_date', cleanDate);
         
         const allLogs = (allLogsRes ?? []) as DailyLogRow[];
-        console.log(`[PDF Aggregation] Murid: ${student.full_name}, Tarikh: ${cleanDate}, Baris dijumpai: ${allLogs.length}`);
 
         // C. Agregasi Semua Kategori & Jana PDF
         const aggregatedLog = aggregateLogContent(allLogs);
+
+        // Ekstrak pengesahan & ulasan ibu bapa daripada mana-mana baris log hari ini.
+        const parentReviewed = allLogs.some((row) => row.parent_reviewed === true);
+        const parentComment =
+          allLogs.find((row) => row.parent_comment && row.parent_comment.trim())?.parent_comment ?? null;
+
+        // C.1 Ambil rekod kehadiran anak bagi tarikh ini (jika ada) untuk
+        // dipaparkan pada kotak ringkasan pengepala PDF.
+        const { data: attendanceRes } = await admin
+          .from('attendance')
+          .select('status, suhu_tiba, suhu_balik')
+          .eq('tenant_id', tenantId)
+          .eq('student_id', student.id)
+          .eq('date', cleanDate)
+          .maybeSingle();
+
+        const attendance = attendanceRes as
+          | { status: string | null; suhu_tiba: string | null; suhu_balik: string | null }
+          | null;
 
         const pdfBuffer = await generateDailyLogPdf({
           center: { name: tenantName },
@@ -247,6 +253,11 @@ async function syncToDriveBackground(params: {
           contentByCategory: aggregatedLog,
           teacherName,
           categoryPhotos,
+          parentReviewed,
+          parentComment,
+          statusKehadiran: attendance?.status ?? null,
+          suhuTiba: attendance?.suhu_tiba ?? null,
+          suhuBalik: attendance?.suhu_balik ?? null,
         });
 
         const pdfFileName = `Log_Harian_${student.full_name}_${cleanDate}.pdf`;
@@ -258,33 +269,30 @@ async function syncToDriveBackground(params: {
         });
         const pdfUrl = `https://drive.google.com/uc?id=${pdfId}`;
 
-        // D. Kemaskini media_urls dalam Supabase untuk SEMUA baris murid ini pada tarikh ini.
+        // D. Kemaskini media_urls dalam Supabase untuk SEMUA baris anak ini pada tarikh ini.
         // HANYA pautan PDF disimpan — tiada pautan berasingan untuk fail foto individu.
         const studentMediaUrls: string[] = [pdfUrl];
-        const studentLogIds = allLogs.map(l => (l as any).id).filter(Boolean);
+        const studentLogIds = allLogs.map((l) => l.id).filter(Boolean);
         if (studentLogIds.length > 0) {
           await admin
             .from('daily_logs')
             .update({ media_urls: studentMediaUrls })
+            .eq('tenant_id', tenantId)
             .in('id', studentLogIds);
         }
-
-        console.log(`[DriveSync] Selesai untuk murid: ${student.full_name}`);
       } catch (err) {
-        console.error(`[DriveSync] Gagal untuk murid ${student.full_name}:`, err);
+        console.error(`[DriveSync] Gagal untuk anak ${student.full_name}:`, err);
       }
     })
   );
-
-  console.log(`[DriveSync] Semua tugas latar belakang selesai.`);
 }
 
 /**
- * Simpan log harian untuk satu atau lebih murid (mod kelompok).
+ * Simpan log harian untuk satu atau lebih anak (mod kelompok).
  *
  * Aliran:
- *  1. Sahkan sesi & murid milik tenant guru.
- *  2. Selesaikan folder Drive murid (getOrCreateStudentDriveFolder).
+ *  1. Sahkan sesi & anak milik tenant pendidik.
+ *  2. Selesaikan folder Drive anak (getOrCreateStudentDriveFolder).
  *  3. Muat naik imej termampat + PDF log ke folder tersebut.
  *  4. Simpan rekod ke Supabase dengan pautan fail Drive.
  *
@@ -304,13 +312,13 @@ export async function saveDailyLogs(
       return {
         ok: false,
         success: false,
-        error: 'Sila pilih sekurang-kurangnya seorang murid.',
+        error: 'Sila pilih sekurang-kurangnya seorang anak.',
       };
     }
 
     const admin = createAdminClient();
 
-    // ── 1. Sahkan murid milik tenant ini ──────────────────────────
+    // ── 1. Sahkan anak milik tenant ini ──────────────────────────
     const { data: validStudents, error: studentError } = await admin
       .from('students')
       .select('id, full_name, class_id')
@@ -318,11 +326,11 @@ export async function saveDailyLogs(
       .in('id', input.studentIds);
 
     if (studentError) {
-      console.error('[saveDailyLogs] Ralat pengesahan murid:', studentError);
+      console.error('[saveDailyLogs] Ralat pengesahan anak:', studentError);
       return {
         ok: false,
         success: false,
-        error: `Gagal mengesahkan murid: ${studentError.message}`,
+        error: `Gagal mengesahkan anak: ${studentError.message}`,
       };
     }
 
@@ -331,15 +339,11 @@ export async function saveDailyLogs(
       return {
         ok: false,
         success: false,
-        error: 'Murid yang dipilih tidak dijumpai dalam pusat anda. Sila muat semula halaman.',
+        error: 'Anak yang dipilih tidak dijumpai dalam pusat anda. Sila muat semula halaman.',
       };
     }
 
     // ── 2. Ambil konfigurasi Drive tenant ─────────────────────────
-    console.log('[saveDailyLogs] Langkah 2: mengambil metadata Drive tenant', {
-      tenantId: profile.tenant_id,
-    });
-
     const { data: tenant, error: tenantError } = await admin
       .from('tenants')
       .select('name, google_drive_folder_id, google_drive_subfolders')
@@ -365,13 +369,6 @@ export async function saveDailyLogs(
     let rootFolderId = tenant?.google_drive_folder_id ?? null;
     let logHarianFolderId = subfolders.log_harian ?? null;
 
-    console.log('[saveDailyLogs] Metadata Drive tenant:', {
-      tenantName: tenant?.name ?? null,
-      google_drive_folder_id: rootFolderId,
-      google_drive_subfolders: subfolders,
-      logHarianFolderId,
-    });
-
     // ── 2b. Pemulihan konfigurasi Drive yang hilang ───────────────
     // Jika tenant tiada konfigurasi Drive, gunakan folder root lalai dan
     // selesaikan/cipta laluan "01logharian -> 01 log harian" secara
@@ -388,10 +385,6 @@ export async function saveDailyLogs(
 
         if (!rootFolderId) {
           rootFolderId = DEFAULT_DRIVE_ROOT_FOLDER_ID;
-          console.log(
-            '[saveDailyLogs] Menggunakan folder root lalai:',
-            rootFolderId
-          );
         }
 
         if (!logHarianFolderId) {
@@ -404,10 +397,6 @@ export async function saveDailyLogs(
             drive,
             LOG_HARIAN_SUBFOLDER_NAME,
             logHarianRootFolderId
-          );
-          console.log(
-            '[saveDailyLogs] Laluan "01logharian -> 01 log harian" diselesaikan:',
-            { logHarianRootFolderId, logHarianFolderId }
           );
         }
 
@@ -428,15 +417,6 @@ export async function saveDailyLogs(
           console.error(
             '[saveDailyLogs] Gagal mengemas kini konfigurasi Drive tenant:',
             updateError
-          );
-        } else {
-          console.log(
-            '[saveDailyLogs] Konfigurasi Drive tenant dikemas kini:',
-            {
-              tenantId: profile.tenant_id,
-              google_drive_folder_id: rootFolderId,
-              google_drive_subfolders: resolvedSubfolders,
-            }
           );
         }
       } catch (driveError) {
@@ -478,6 +458,7 @@ export async function saveDailyLogs(
       const { data: classes } = await admin
         .from('classes')
         .select('id, class_name')
+        .eq('tenant_id', profile.tenant_id)
         .in('id', classIds);
       (classes ?? []).forEach((c) => {
         classNames[c.id] = c.class_name;
@@ -488,7 +469,7 @@ export async function saveDailyLogs(
     // Kami simpan tanpa media_urls dahulu untuk respons UI yang pantas.
     // media_urls akan dikemas kini oleh tugas latar belakang.
     // PENTING: `category` mesti diterjemah ke nilai enum PostgreSQL yang betul.
-    const dbRows: any[] = [];
+    const dbRows: DailyLogInput[] = [];
     for (const student of students) {
       for (const entry of input.entries) {
         dbRows.push({
@@ -503,10 +484,9 @@ export async function saveDailyLogs(
       }
     }
 
-    const { data: insertedRows, error: insertError } = await admin
+    const { error: insertError } = await admin
       .from('daily_logs')
-      .insert(dbRows)
-      .select('id');
+      .insert(dbRows);
 
     if (insertError) {
       console.error('[saveDailyLogs] Ralat sisipan:', insertError);
@@ -517,15 +497,12 @@ export async function saveDailyLogs(
       };
     }
 
-    const insertedLogIds = (insertedRows ?? []).map((r) => r.id);
-
     // ── 5. Pencetus Tugas Latar Belakang (Non-blocking) ────────────
     // Kami memulakan penyelarasan Drive tanpa menunggu (no await).
     syncToDriveBackground({
       tenantId: profile.tenant_id,
       tenantName: tenant?.name ?? 'Pusat Anak PERMATA Negara',
-      teacherId: profile.id,
-      teacherName: profile.full_name ?? 'Guru Bertugas',
+      teacherName: profile.full_name ?? 'Pendidik Bertugas',
       logDate: input.logDate,
       entries: input.entries,
       students: students.map((s) => ({
@@ -535,7 +512,6 @@ export async function saveDailyLogs(
       })),
       classNames,
       logHarianFolderId: logHarianFolderId!,
-      insertedLogIds,
     }).catch((err) => {
       console.error('[saveDailyLogs] Ralat dalam tugas latar belakang:', err);
     });

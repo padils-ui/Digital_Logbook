@@ -1,115 +1,128 @@
-import type { Metadata } from 'next';
-import { Bell, CalendarCheck, TriangleAlert } from 'lucide-react';
-import { getCurrentUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { LogSummaryCard } from '@/components/parent/log-summary-card';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Ruang Ibu Bapa' };
+export interface GroupedDailyReport {
+  date: string;
+  studentId: string;
+  studentName: string;
+  logIds: string[];
+  isReviewed: boolean;
+  parentComment: string | null;
+  entries: any[];
+}
 
-export default async function ParentPage() {
-  const profile = await getCurrentUser();
-  const supabase = createClient();
+export default async function ParentDashboardPage() {
+  const supabase = await createClient();
 
-  // RLS mengehadkan baris kepada anak yang dipautkan dengan parent_id ini.
-  const { data: links } = await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const db = supabase as any;
+
+  // 1. Fetch student IDs linked to parent
+  const { data: studentParents } = await db
     .from('student_parents')
-    .select('student_id, students(id, full_name, nickname, photo_url)')
-    .eq('parent_id', profile?.id ?? '');
+    .select('student_id')
+    .eq('parent_id', user.id);
 
-  const children = (links ?? [])
-    .map((row) => row.students)
-    .filter(Boolean)
-    .flat() as unknown as {
-    id: string;
-    full_name: string;
-    nickname: string | null;
-    photo_url: string | null;
-  }[];
+  const studentIds = (studentParents || []).map((sp: any) => sp.student_id);
 
-  const childIds = children.map((c) => c.id);
+  let rawLogs: any[] = [];
 
-  const [logs, incidents, announcements] = await Promise.all([
-    childIds.length
-      ? supabase
-          .from('daily_logs')
-          .select('id', { count: 'exact', head: true })
-          .in('student_id', childIds)
-      : Promise.resolve({ count: 0 }),
-    childIds.length
-      ? supabase
-          .from('incident_reports')
-          .select('id', { count: 'exact', head: true })
-          .in('student_id', childIds)
-          .eq('acknowledged_by_parent', false)
-      : Promise.resolve({ count: 0 }),
-    supabase.from('announcements').select('id', { count: 'exact', head: true }),
-  ]);
+  // 2. Fetch all raw logs for linked students
+  if (studentIds.length > 0) {
+    const { data } = await db
+      .from('daily_logs')
+      .select(`
+        *,
+        students (
+          full_name
+        )
+      `)
+      .in('student_id', studentIds)
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    rawLogs = data || [];
+  }
+
+  // 3. Group raw logs by date and student
+  const groupedMap = new Map<string, GroupedDailyReport>();
+
+  rawLogs.forEach((log: any) => {
+    const key = `${log.log_date}_${log.student_id}`;
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        date: log.log_date,
+        studentId: log.student_id,
+        studentName: log.students?.full_name || 'Anak',
+        logIds: [],
+        isReviewed: true, // Default to true, set false if any log is unreviewed
+        parentComment: null,
+        entries: [],
+      });
+    }
+
+    const group = groupedMap.get(key)!;
+    group.logIds.push(log.id);
+    group.entries.push(log);
+
+    // If any single log entry for the day is not reviewed, the daily report is pending
+    if (!log.parent_reviewed) {
+      group.isReviewed = false;
+    }
+
+    // Capture existing parent comment
+    if (log.parent_comment) {
+      group.parentComment = log.parent_comment;
+    }
+  });
+
+  const dailyReports = Array.from(groupedMap.values());
+  const pendingCount = dailyReports.filter((report) => !report.isReviewed).length;
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-          Ruang Ibu Bapa / Penjaga
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Selamat datang, {profile?.full_name ?? 'Ibu Bapa'}.
-        </p>
-      </header>
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        <div className="card">
-          <CalendarCheck className="h-5 w-5 text-brand-600" aria-hidden />
-          <p className="mt-3 text-2xl font-bold text-slate-900">
-            {logs.count ?? 0}
+    <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-6">
+      {/* Header & Status Indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">Laporan Log Harian</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Semak dan berikan ulasan bagi laporan harian anak anda.
           </p>
-          <p className="text-xs text-slate-500">Rekod log anak anda</p>
         </div>
-        <div className="card">
-          <TriangleAlert className="h-5 w-5 text-amber-600" aria-hidden />
-          <p className="mt-3 text-2xl font-bold text-slate-900">
-            {incidents.count ?? 0}
-          </p>
-          <p className="text-xs text-slate-500">Insiden perlu diakui</p>
-        </div>
-        <div className="card">
-          <Bell className="h-5 w-5 text-purple-600" aria-hidden />
-          <p className="mt-3 text-2xl font-bold text-slate-900">
-            {announcements.count ?? 0}
-          </p>
-          <p className="text-xs text-slate-500">Pengumuman pusat</p>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2 className="text-sm font-semibold text-slate-800">Anak Saya</h2>
-        {children.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-600">
-            Tiada anak dipautkan pada akaun anda. Sila hubungi pentadbir PAPN.
-          </p>
+        {pendingCount > 0 ? (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-xs font-semibold w-fit">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            {pendingCount} Laporan Harian Memerlukan Ulasan
+          </div>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-100">
-            {children.map((child) => (
-              <li
-                key={child.id}
-                className="flex min-h-touch items-center gap-3 py-2"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                  {child.full_name.charAt(0).toUpperCase()}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-800">
-                    {child.full_name}
-                  </span>
-                  {child.nickname ? (
-                    <span className="block text-xs text-slate-500">
-                      Panggilan: {child.nickname}
-                    </span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-xs font-semibold w-fit">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Semua Laporan Telah Disahkan
+          </div>
         )}
-      </section>
+      </div>
+
+      {/* Grouped Daily Report List */}
+      {dailyReports.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
+          <p className="text-sm text-slate-500">Tiada log harian dijumpai buat masa ini.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {dailyReports.map((report) => (
+            <LogSummaryCard key={`${report.date}_${report.studentId}`} report={report} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

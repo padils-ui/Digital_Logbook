@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   BookOpenText,
   Building2,
+  ClipboardCheck,
   GraduationCap,
   IdCard,
   LayoutDashboard,
@@ -29,22 +30,25 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
   super_admin: [
     { href: '/dashboard', label: 'Papan Pemuka', icon: LayoutDashboard },
     { href: '/admin/tenants', label: 'Pengurusan Pusat', icon: Building2 },
-    { href: '/admin/students', label: 'Pengurusan Murid', icon: Users },
+    { href: '/admin/students', label: 'Pengurusan Anak', icon: Users },
     { href: '/admin/classes', label: 'Pengurusan Kelas', icon: GraduationCap },
-    { href: '/teacher', label: 'Ruang Guru', icon: BookOpenText },
+    { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
+    { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
   admin_papn: [
     { href: '/dashboard', label: 'Papan Pemuka', icon: LayoutDashboard },
-    { href: '/admin/students', label: 'Pengurusan Murid', icon: Users },
+    { href: '/admin/students', label: 'Pengurusan Anak', icon: Users },
     { href: '/admin/classes', label: 'Pengurusan Kelas', icon: GraduationCap },
-    { href: '/teacher', label: 'Ruang Guru', icon: BookOpenText },
+    { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
+    { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
   teacher: [
-    { href: '/teacher', label: 'Ruang Guru', icon: BookOpenText },
+    { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
+    { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
@@ -57,7 +61,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
 const ROLE_LABEL: Record<UserRole, string> = {
   super_admin: 'Super Admin',
   admin_papn: 'Pentadbir PAPN',
-  teacher: 'Guru / Pengasuh',
+  teacher: 'Pendidik / Pengasuh',
   parent: 'Ibu Bapa / Penjaga',
 };
 

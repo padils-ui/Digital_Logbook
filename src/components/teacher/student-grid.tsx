@@ -11,7 +11,7 @@ interface StudentGridProps {
   contactsByStudent: Record<string, EmergencyContact[]>;
 }
 
-/** Grid kad profil murid dengan carian dan penapis kelas. */
+/** Grid kad profil anak dengan carian dan penapis kelas. */
 export function StudentGrid({
   students,
   classNames,
@@ -52,14 +52,14 @@ export function StudentGrid({
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-slate-600" aria-hidden />
           <h2 className="text-sm font-semibold text-slate-800">
-            Kad Profil Murid
+            Kad Profil Anak
           </h2>
-          <span className="badge-slate">{filtered.length} murid</span>
+          <span className="badge-slate">{filtered.length} anak</span>
         </div>
         {allergyCount > 0 && (
           <span className="badge-red">
             <TriangleAlert className="mr-1 h-3 w-3" aria-hidden />
-            {allergyCount} murid ada alahan
+            {allergyCount} anak ada alahan
           </span>
         )}
       </div>
@@ -76,7 +76,7 @@ export function StudentGrid({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cari nama, panggilan atau MyKid…"
-            aria-label="Cari murid"
+            aria-label="Cari anak"
             className="input pl-9"
           />
         </div>
@@ -110,7 +110,7 @@ export function StudentGrid({
 
       {filtered.length === 0 ? (
         <p className="card text-center text-sm text-slate-500">
-          Tiada murid sepadan dengan carian anda.
+          Tiada anak sepadan dengan carian anda.
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

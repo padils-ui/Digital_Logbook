@@ -211,7 +211,7 @@ export async function POST() {
         classId = newClass.id;
       }
 
-      // 3. Masukkan murid bagi kelas ini (hanya jadual `students`).
+      // 3. Masukkan anak bagi kelas ini (hanya jadual `students`).
       for (const s of seedClass.students) {
         const { error: studentErr } = await admin.from('students').insert({
           tenant_id: tenantId,
@@ -229,7 +229,7 @@ export async function POST() {
 
         if (studentErr) {
           throw new Error(
-            `Gagal memasukkan murid "${s.full_name}": ${studentErr.message}`
+            `Gagal memasukkan anak "${s.full_name}": ${studentErr.message}`
           );
         }
         studentsInserted += 1;

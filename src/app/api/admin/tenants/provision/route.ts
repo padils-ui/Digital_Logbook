@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
   }
   if (!Number.isInteger(studentLimit) || studentLimit < 1) {
     return NextResponse.json(
-      { error: 'Had murid mesti nombor bulat positif.' },
+      { error: 'Had anak mesti nombor bulat positif.' },
       { status: 400 }
     );
   }

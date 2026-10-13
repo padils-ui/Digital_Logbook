@@ -34,10 +34,21 @@ export interface DailyLogPdfData {
   logDate: string;
   /** Kandungan log mengikut kategori: { [category]: { field: value } }. */
   contentByCategory: Partial<Record<LogCategory, Record<string, unknown>>>;
-  /** Nama guru yang menandatangani log. */
+  /** Nama pendidik yang menandatangani log. */
   teacherName: string;
   /** Imej mengikut kategori untuk disematkan terus ke dalam kad kategori. */
   categoryPhotos?: Partial<Record<LogCategory, CategoryPhoto>>;
+  /** Sama ada log harian telah disahkan oleh ibu bapa / penjaga. */
+  parentReviewed?: boolean;
+  /** Ulasan daripada ibu bapa (jika ada). */
+  parentComment?: string | null;
+  parentCommentedAt?: string | null;
+  /** Status kehadiran anak bagi tarikh log (cth. 'Hadir'). */
+  statusKehadiran?: string | null;
+  /** Suhu badan anak semasa tiba (°C). */
+  suhuTiba?: string | null;
+  /** Suhu badan anak semasa pulang (°C). */
+  suhuBalik?: string | null;
 }
 
 // ── Geometri halaman A4 (mata) ──────────────────────────────────
@@ -63,40 +74,51 @@ const COLOR_DEEP_BLUE = rgb(0.118, 0.227, 0.541);
 const COLOR_SLATE = rgb(0.953, 0.957, 0.965);
 const COLOR_CHARCOAL = rgb(0.118, 0.161, 0.231);
 const COLOR_WHITE = rgb(1, 1, 1);
+const COLOR_GREEN = rgb(0.086, 0.639, 0.29);
+const COLOR_GREEN_BG = rgb(0.925, 0.992, 0.957);
+const COLOR_AMBER = rgb(0.706, 0.325, 0.035);
+const COLOR_AMBER_BG = rgb(1, 0.984, 0.922);
 
 /** Label Bahasa Melayu untuk setiap kategori log. */
 const CATEGORY_LABELS: Record<LogCategory, string> = {
   child_activity: 'Aktiviti Anak',
   meals: 'Makanan',
   sleep: 'Tidur',
-  attendance: 'Kehadiran / Suhu',
-  health: 'Kesihatan / Ubat',
+  health: 'Tingkah Laku',
 };
 
 /** Label Bahasa Melayu untuk medan yang diketahui. */
 const FIELD_LABELS: Record<string, string> = {
-  activity: 'Aktiviti',
-  participation: 'Penglibatan',
-  duration: 'Tempoh',
+  aktiviti_bebas: 'Aktiviti Bebas',
+  penglibatan_bebas: 'Penglibatan Bebas',
+  aktiviti_luar: 'Aktiviti Luar',
+  penglibatan_luar: 'Penglibatan Luar',
+  aktiviti_permata: 'Aktiviti PERMATA',
+  penglibatan_permata: 'Penglibatan PERMATA',
   notes: 'Catatan',
-  meal: 'Waktu Makan',
   appetite: 'Selera',
+  duration: 'Tempoh',
   quality: 'Kualiti Tidur',
-  status: 'Status Kehadiran',
-  temperature: 'Suhu Badan',
-  condition: 'Keadaan',
-  medicine: 'Ubat Diberi',
+  tingkah_laku: 'Tingkah Laku',
+  kemalangan: 'Kemalangan',
+  kecederaan: 'Kecederaan',
+  kesihatan: 'Kesihatan',
 };
 
 /** Format nilai medan untuk paparan PDF. */
 function formatFieldValue(field: string, value: unknown, category?: LogCategory): string {
   const text = value === null || value === undefined ? '' : String(value).trim();
   if (!text) return '';
-  if (field === 'temperature') return `${text} °C`;
   if (field === 'duration') {
-    return category === 'sleep' ? `${text} jam` : `${text} minit`;
+    return category === 'sleep' ? `${text} jam` : text;
   }
   return text;
+}
+
+/** Format nilai suhu dengan unit °C; 'Tiada Rekod' jika tiada nilai. */
+function formatSuhu(value: string | null | undefined): string {
+  const text = (value ?? '').trim();
+  return text ? `${text} °C` : 'Tiada Rekod';
 }
 
 /** Format tarikh ISO (YYYY-MM-DD) kepada format Bahasa Melayu. */
@@ -213,10 +235,8 @@ class PageHelper {
     y: number,
     width: number,
     height: number,
-    color: Color,
-    radius: number = 0
+    color: Color
   ): void {
-    // pdf-lib drawRectangle draws from bottom-left
     this.page.drawRectangle({
       x,
       y,
@@ -224,9 +244,6 @@ class PageHelper {
       height,
       color,
     });
-    // Note: pdf-lib doesn't have native rounded corners for drawRectangle.
-    // We could use SVG paths, but for this refactor we'll stick to simple rects
-    // or just omit the radius if not critical. The original had Bezier curves.
   }
 
   rule(color: Color = COLOR_RULE, gap = 6): void {
@@ -248,9 +265,6 @@ class PageHelper {
 /**
  * Lukis kad bertajuk, dengan sokongan imej sebaris (inline) di bawah
  * senarai bulet jika foto kategori disediakan.
- *
- * Imej diskalakan kepada ketinggian maksimum ~70pt supaya kad kekal padat
- * dan dokumen dapat dimuatkan pada satu halaman A4.
  */
 async function drawCard(
   helper: PageHelper,
@@ -266,7 +280,6 @@ async function drawCard(
   const titleHeight = 22;
   const photoMaxHeight = 70;
 
-  // Estimate height
   let estimatedContentHeight = 0;
   const font = helper.fonts.regular;
   for (const line of lines) {
@@ -285,7 +298,6 @@ async function drawCard(
     estimatedContentHeight += lineCount * lineHeight;
   }
 
-  // Semat imej terlebih dahulu untuk mengetahui dimensi sebenar.
   let embedded: Awaited<ReturnType<PDFDocument['embedJpg']>> | null = null;
   let photoHeight = 0;
   let photoWidth = 0;
@@ -318,7 +330,6 @@ async function drawCard(
     helper.paragraph(line, { x: x + padding, size: FONT_BODY, maxWidth: width - padding * 2, lineHeight });
   }
 
-  // Lukis imej sebaris di bawah bulet, di tengah-tengah kad.
   if (embedded) {
     const photoX = x + (width - photoWidth) / 2;
     const photoY = helper.cursorY - photoHeight - 2;
@@ -333,7 +344,7 @@ async function drawCard(
   helper.cursorY = top - totalHeight - 8;
 }
 
-/** Pengepala dan maklumat murid. */
+/** Pengepala dan maklumat anak. */
 function drawHeaderAndStudentInfo(helper: PageHelper, data: DailyLogPdfData): void {
   const bannerHeight = 72;
   helper.rect(0, PAGE_HEIGHT - bannerHeight, PAGE_WIDTH, bannerHeight, COLOR_DEEP_BLUE);
@@ -346,7 +357,7 @@ function drawHeaderAndStudentInfo(helper: PageHelper, data: DailyLogPdfData): vo
     color: COLOR_WHITE,
     lineHeight: 18,
   });
-  helper.text('LOG HARIAN MURID', {
+  helper.text('LOG HARIAN ANAK', {
     x: MARGIN_X,
     size: FONT_HEADING,
     bold: true,
@@ -363,7 +374,7 @@ function drawHeaderAndStudentInfo(helper: PageHelper, data: DailyLogPdfData): vo
 
   helper.cursorY = PAGE_HEIGHT - 96;
   const cardTop = helper.cursorY;
-  const cardHeight = 58;
+  const cardHeight = 60;
   helper.rect(MARGIN_X, cardTop - cardHeight, CONTENT_WIDTH, cardHeight, COLOR_SLATE);
   
   const colWidth = CONTENT_WIDTH / 2;
@@ -371,28 +382,21 @@ function drawHeaderAndStudentInfo(helper: PageHelper, data: DailyLogPdfData): vo
   const rightX = MARGIN_X + colWidth + 10;
 
   helper.cursorY = cardTop - 18;
-  helper.text(`Nama Murid: ${data.studentName}`, { x: leftX, size: FONT_BODY, bold: true, color: COLOR_CHARCOAL, lineHeight: 14 });
+  helper.text(`Nama Anak: ${data.studentName}`, { x: leftX, size: FONT_BODY, bold: true, color: COLOR_CHARCOAL, lineHeight: 14 });
   helper.text(`Tarikh: ${formatDateMs(data.logDate)}`, { x: rightX, y: cardTop - 18, size: FONT_BODY, color: COLOR_CHARCOAL });
   
   helper.cursorY = cardTop - 32;
   helper.text(`Kelas: ${data.className}`, { x: leftX, size: FONT_BODY, color: COLOR_CHARCOAL, lineHeight: 14 });
-  helper.text(`Guru / Pengasuh: ${data.teacherName}`, { x: rightX, y: cardTop - 32, size: FONT_BODY, color: COLOR_CHARCOAL });
+  helper.text(`Pendidik / Pengasuh: ${data.teacherName}`, { x: rightX, y: cardTop - 32, size: FONT_BODY, color: COLOR_CHARCOAL });
 
-  // Badge kehadiran & suhu
-  helper.cursorY = cardTop - cardHeight - 26;
-  const attendance = data.contentByCategory.attendance ?? {};
-  const status = formatFieldValue('status', attendance.status) || 'Hadir';
-  const temp = formatFieldValue('temperature', attendance.temperature);
-  const badgeY = helper.cursorY;
-  
-  helper.rect(MARGIN_X, badgeY, 150, 20, COLOR_DEEP_BLUE);
-  helper.text(`Status: ${status}`, { x: MARGIN_X + 12, y: badgeY + 6, size: FONT_SMALL, bold: true, color: COLOR_WHITE });
-  
-  if (temp) {
-    helper.rect(MARGIN_X + 160, badgeY, 130, 20, COLOR_SLATE);
-    helper.text(`Suhu: ${temp}`, { x: MARGIN_X + 172, y: badgeY + 6, size: FONT_SMALL, bold: true, color: COLOR_CHARCOAL });
-  }
-  helper.cursorY = badgeY - 14;
+  // Baris kehadiran & suhu — fallback 'Tiada Rekod' jika rekod tiada.
+  const statusLabel = (data.statusKehadiran ?? '').trim() || 'Tiada Rekod';
+  helper.text(
+    `Kehadiran: ${statusLabel}   |   Suhu Tiba: ${formatSuhu(data.suhuTiba)}   |   Suhu Balik: ${formatSuhu(data.suhuBalik)}`,
+    { x: leftX, y: cardTop - 46, size: FONT_SMALL, color: COLOR_CHARCOAL }
+  );
+
+  helper.cursorY = cardTop - cardHeight - 14;
 }
 
 /** Kategori log. */
@@ -438,21 +442,6 @@ async function drawLogCategories(
     helper.cursorY = Math.min(leftBottom, rightBottom);
   }
 
-  const attendanceNotes = categoryEntries(data.contentByCategory.attendance, 'attendance').filter(
-    ([field]) => field === 'notes'
-  );
-  if (attendanceNotes.length > 0) {
-    await drawCard(
-      helper,
-      doc,
-      CATEGORY_LABELS.attendance,
-      attendanceNotes.map(([f, v]) => `${FIELD_LABELS[f] ?? f}: ${v}`),
-      MARGIN_X,
-      CONTENT_WIDTH,
-      photos.attendance
-    );
-  }
-
   const health = categoryEntries(data.contentByCategory.health, 'health');
   if (health.length > 0) {
     await drawCard(
@@ -465,6 +454,95 @@ async function drawLogCategories(
       photos.health
     );
   }
+}
+
+/**
+ * Lukis seksyen "Pengesahan & Ulasan Ibu Bapa / Penjaga".
+ *
+ * Dipaparkan tepat di atas footer dokumen. Mengandungi pengepala dengan
+ * lencana status (Telah Disahkan / Belum Disahkan) dan badan yang memaparkan
+ * ulasan ibu bapa atau mesej lalai yang sesuai.
+ */
+function drawParentReview(helper: PageHelper, data: DailyLogPdfData): void {
+  const reviewed = data.parentReviewed === true;
+  const comment = (data.parentComment ?? '').trim();
+
+  const padding = 8;
+  const width = CONTENT_WIDTH;
+  const headerHeight = 20;
+  const bodyLineHeight = 12;
+
+  // Tentukan teks badan berdasarkan status pengesahan.
+  let bodyText: string;
+  if (reviewed) {
+    bodyText = comment || 'Log harian telah disahkan tanpa ulasan tambahan.';
+  } else {
+    bodyText = 'Tiada ulasan diterima daripada ibu bapa lagi.';
+  }
+
+  // Kira tinggi badan berdasarkan bilangan baris teks.
+  const font = helper.fonts.regular;
+  const words = bodyText.split(/\s+/).filter(Boolean);
+  let currentLine = '';
+  let bodyLines = 1;
+  for (const word of words) {
+    const test = currentLine ? `${currentLine} ${word}` : word;
+    if (font.widthOfTextAtSize(test, FONT_BODY) > width - padding * 2) {
+      bodyLines++;
+      currentLine = word;
+    } else {
+      currentLine = test;
+    }
+  }
+
+  const bodyHeight = bodyLines * bodyLineHeight + padding;
+  const totalHeight = headerHeight + bodyHeight + 6;
+  const top = helper.cursorY;
+
+  // Latar belakang keseluruhan seksyen.
+  helper.rect(MARGIN_X, top - totalHeight, width, totalHeight, COLOR_SLATE);
+
+  // Pengepala + lencana status.
+  helper.text('Pengesahan & Ulasan Ibu Bapa / Penjaga', {
+    x: MARGIN_X + padding,
+    y: top - 14,
+    size: FONT_HEADING,
+    bold: true,
+    color: COLOR_DEEP_BLUE,
+  });
+
+  const badgeText = reviewed ? 'Telah Disahkan' : 'Belum Disahkan';
+  const badgeColor = reviewed ? COLOR_GREEN : COLOR_AMBER;
+  const badgeBg = reviewed ? COLOR_GREEN_BG : COLOR_AMBER_BG;
+  const badgeFont = helper.fonts.bold;
+  const badgeTextWidth = badgeFont.widthOfTextAtSize(badgeText, FONT_SMALL);
+  const badgeWidth = badgeTextWidth + 16;
+  const badgeX = MARGIN_X + width - padding - badgeWidth;
+  const badgeY = top - 18;
+
+  helper.rect(badgeX, badgeY, badgeWidth, 14, badgeBg);
+  helper.text(badgeText, {
+    x: badgeX + 8,
+    y: badgeY + 4,
+    size: FONT_SMALL,
+    bold: true,
+    color: badgeColor,
+  });
+
+  // Kotak badan untuk ulasan.
+  const bodyTop = top - headerHeight;
+  helper.rect(MARGIN_X + padding, bodyTop - bodyHeight, width - padding * 2, bodyHeight, COLOR_WHITE);
+
+  helper.cursorY = bodyTop - padding - 2;
+  helper.paragraph(bodyText, {
+    x: MARGIN_X + padding * 2,
+    size: FONT_BODY,
+    maxWidth: width - padding * 4,
+    lineHeight: bodyLineHeight,
+    color: reviewed && comment ? COLOR_CHARCOAL : COLOR_MUTED,
+  });
+
+  helper.cursorY = top - totalHeight - 8;
 }
 
 /** Footer dokumen. */
@@ -494,6 +572,7 @@ export async function generateDailyLogPdf(data: DailyLogPdfData): Promise<Buffer
   
   drawHeaderAndStudentInfo(helper, data);
   await drawLogCategories(helper, data, doc);
+  drawParentReview(helper, data);
   drawFooter(helper);
   
   const pdfBytes = await doc.save();

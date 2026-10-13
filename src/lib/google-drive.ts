@@ -172,9 +172,9 @@ export interface StudentDriveFolderInput {
 }
 
 /**
- * Dapatkan (atau cipta) folder murid mengikut laluan:
+ * Dapatkan (atau cipta) folder anak mengikut laluan:
  *   01Log harian -> [Year] -> [Month] -> [Class] -> [Student]
- * dan pulangkan ID folder murid.
+ * dan pulangkan ID folder anak.
  */
 export async function getOrCreateStudentDriveFolder({
   logHarianFolderId,

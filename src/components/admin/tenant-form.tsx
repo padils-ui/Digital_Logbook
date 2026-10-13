@@ -224,7 +224,7 @@ export function TenantForm() {
               htmlFor="student_limit"
               className="mb-1 block text-sm font-medium text-slate-700"
             >
-              Had Murid
+              Had Anak
             </label>
             <input
               id="student_limit"

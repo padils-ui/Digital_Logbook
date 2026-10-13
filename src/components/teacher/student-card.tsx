@@ -26,7 +26,7 @@ interface StudentCardProps {
 }
 
 /**
- * Kad profil murid dengan amaran alahan merah yang menonjol.
+ * Kad profil anak dengan amaran alahan merah yang menonjol.
  * Boleh digunakan sebagai kad paparan atau kad boleh pilih (batch).
  */
 export function StudentCard({

@@ -13,8 +13,7 @@ const TAB_KEYS = [
   'aktiviti_anak',
   'makanan',
   'tidur',
-  'kehadiran_suhu',
-  'kesihatan_ubat',
+  'tingkah_laku',
 ] as const;
 
 type TabKey = (typeof TAB_KEYS)[number];
@@ -24,17 +23,23 @@ const TAB_TO_CATEGORY: Record<TabKey, string> = {
   aktiviti_anak: 'child_activity',
   makanan: 'meals',
   tidur: 'sleep',
-  kehadiran_suhu: 'attendance',
-  kesihatan_ubat: 'health',
+  tingkah_laku: 'health',
 };
 
 /** Medan yang sah bagi setiap tab (mengikut definisi borang). */
 const TAB_FIELDS: Record<TabKey, string[]> = {
-  aktiviti_anak: ['activity', 'participation', 'duration', 'notes'],
-  makanan: ['meal', 'appetite', 'notes'],
+  aktiviti_anak: [
+    'aktiviti_bebas',
+    'penglibatan_bebas',
+    'aktiviti_luar',
+    'penglibatan_luar',
+    'aktiviti_permata',
+    'penglibatan_permata',
+    'notes',
+  ],
+  makanan: ['appetite', 'notes'],
   tidur: ['duration', 'quality', 'notes'],
-  kehadiran_suhu: ['status', 'temperature', 'notes'],
-  kesihatan_ubat: ['condition', 'medicine', 'notes'],
+  tingkah_laku: ['tingkah_laku', 'kemalangan', 'kecederaan', 'kesihatan', 'notes'],
 };
 
 /** Skema satu tab — semua medan opsional (nullable). */
@@ -42,7 +47,7 @@ function tabSchema(fields: string[]) {
   const properties: Record<string, unknown> = {};
   for (const field of fields) {
     properties[field] =
-      field === 'duration' || field === 'temperature'
+      field === 'duration'
         ? { type: Type.NUMBER, nullable: true }
         : { type: Type.STRING, nullable: true };
   }
@@ -64,11 +69,11 @@ const responseSchema = {
     student_names: {
       type: Type.ARRAY,
       items: { type: Type.STRING },
-      description: 'Nama murid yang disebut dalam rakaman.',
+      description: 'Nama anak yang disebut dalam rakaman.',
     },
     summary_bm: {
       type: Type.STRING,
-      description: 'Ringkasan ringkas dalam Bahasa Melayu untuk pengesahan guru.',
+      description: 'Ringkasan ringkas dalam Bahasa Melayu untuk pengesahan pendidik.',
     },
     confidence: {
       type: Type.NUMBER,
@@ -79,15 +84,14 @@ const responseSchema = {
 };
 
 const SYSTEM_PROMPT = `Anda ialah pembantu pentadbiran untuk Pusat Anak PERMATA Negara (PAPN) di Malaysia.
-Tugas anda: tukar pertuturan guru dalam Bahasa Melayu kepada data log harian berstruktur,
+Tugas anda: tukar pertuturan pendidik dalam Bahasa Melayu kepada data log harian berstruktur,
 DIHALAKAN ke tab yang betul (penghalaan pintar berbilang tab).
 
 Tab yang tersedia (gunakan kunci ini dalam data_by_tab):
-- aktiviti_anak: aktiviti pembelajaran, topik belajar dan aktiviti luar/fizikal (cth: mengenal huruf, menggunting, melukis, mewarna, menyanyi, bermain di taman, bola, senaman)
+- aktiviti_anak: aktiviti yang dijalankan, merangkumi kluster Aktiviti Bebas, Aktiviti Luar dan Aktiviti PERMATA (cth: mengenal huruf, menggunting, melukis, mewarna, menyanyi, bermain di taman, bola, senaman). Isi aktiviti_bebas / aktiviti_luar / aktiviti_permata mengikut kluster yang disebut.
 - makanan: selera makan, jenis hidangan, nota makanan (cth: makan, minum, suap, kenyang, susu)
 - tidur: tempoh tidur, kualiti tidur (cth: tidur, lelap, rehat)
-- kehadiran_suhu: suhu badan, nota kehadiran (cth: suhu, 37.5, demam, hadir, tidak hadir)
-- kesihatan_ubat: masalah kesihatan, ubat yang diberi (cth: batuk, selesema, sakit, ubat)
+- tingkah_laku: tingkah laku anak, kemalangan, kecederaan dan kesihatan (cth: menangis, bergaduh, jatuh, lebam, batuk, selesema, demam)
 
 Peraturan:
 1. Gunakan Bahasa Melayu baku (istilah KPM). JANGAN gunakan istilah Indonesia.
@@ -98,32 +102,31 @@ Peraturan:
      "tidur": { "duration": 1, "quality": "Tidur lena" } }
 3. HANYA isi tab yang disebut secara eksplisit. Tab yang tidak disebut MESTI null.
    JANGAN reka data. JANGAN ulang teks yang sama dalam semua tab.
-4. Suhu badan dalam Celsius. "tiga puluh enam lima" = 36.5.
-5. Tempoh tidur dalam jam. "satu jam" = 1.
-6. Jika guru menyebut beberapa murid, senaraikan nama dalam student_names.
-7. summary_bm mesti ringkas dan mudah difahami guru untuk pengesahan.
+4. Tempoh tidur dalam jam. "satu jam" = 1.
+5. Jika pendidik menyebut beberapa anak, senaraikan nama dalam student_names.
+6. summary_bm mesti ringkas dan mudah difahami pendidik untuk pengesahan.
 
 PEMBERSIHAN NILAI (SANGAT PENTING):
-8. BUANG nama murid daripada SEMUA nilai medan. Nama murid hanya diletakkan
+7. BUANG nama anak daripada SEMUA nilai medan. Nama anak hanya diletakkan
    dalam student_names, TIDAK dalam medan.
    Contoh: "Khairul Zikri", "Zikri", "Aiman" → dibuang sepenuhnya.
-9. BUANG penanda masa/tarikh: "hari ini", "pada hari ini", "pada pagi ini",
+8. BUANG penanda masa/tarikh: "hari ini", "pada hari ini", "pada pagi ini",
    "petang tadi", "tadi".
-10. BUANG penanda kategori dan kata transisi di awal/akhir nilai:
-    "pembelajaran", "aktiviti luar", "aktiviti luar ialah", "makanan pula ialah",
-    "ialah", "adalah", "pula", "kemudian", "dan", "seterusnya", "selanjutnya".
-11. Nilai MESTI ringkas dan mengandungi HANYA tindakan/butiran sebenar.
+9. BUANG penanda kategori dan kata transisi di awal/akhir nilai:
+   "aktiviti bebas", "aktiviti luar", "aktiviti PERMATA", "makanan pula ialah",
+   "ialah", "adalah", "pula", "kemudian", "dan", "seterusnya", "selanjutnya".
+10. Nilai MESTI ringkas dan mengandungi HANYA tindakan/butiran sebenar.
     Contoh BETUL:
-      - pembelajaran.activity: "Aktiviti menggunting"
-      - aktiviti_luar.activity: "Bermain air di kolam"
+      - aktiviti_bebas: "Menggunting bentuk bulat"
+      - aktiviti_luar: "Bermain air di kolam"
       - makanan.notes: "Makan dengan habis"
     Contoh SALAH (jangan hasilkan begini):
-      - "pembelajaran khairul zikri hari ini ialah aktiviti menggunting"
+      - "aktiviti bebas khairul zikri hari ini ialah menggunting"
       - "ialah bermain air di kolam zikri makan dengan habis"
-12. JANGAN campurkan kandungan antara tab. Teks aktiviti luar TIDAK boleh masuk
-    ke makanan. Teks pembelajaran TIDAK boleh masuk ke aktiviti luar.
+11. JANGAN campurkan kandungan antara tab. Teks aktiviti luar TIDAK boleh masuk
+    ke makanan. Teks aktiviti bebas TIDAK boleh masuk ke aktiviti luar.
     Setiap tab hanya menerima butiran yang berkaitan dengannya sahaja.
-13. Mulakan nilai dengan huruf besar dan jangan tinggalkan perkataan
+12. Mulakan nilai dengan huruf besar dan jangan tinggalkan perkataan
     penggantung seperti "ialah", "adalah", "pula" di hujung nilai.`;
 
 interface VoiceLogRequest {
@@ -214,16 +217,19 @@ const TIME_FILLERS = [
 const TRANSITION_WORDS = [
   'aktiviti luar ialah',
   'aktiviti luar adalah',
+  'aktiviti bebas ialah',
+  'aktiviti permata ialah',
   'makanan pula ialah',
   'makanan ialah',
   'pembelajaran ialah',
   'tidur ialah',
-  'suhu ialah',
   'aktiviti luar',
+  'aktiviti bebas',
+  'aktiviti permata',
+  'tingkah laku',
   'pembelajaran',
   'makanan',
   'tidur',
-  'suhu',
   'ialah',
   'adalah',
   'pula',
@@ -247,13 +253,13 @@ function capitalise(value: string): string {
 }
 
 /**
- * Bersihkan satu cebisan teks: buang nama murid, penanda masa, penanda
+ * Bersihkan satu cebisan teks: buang nama anak, penanda masa, penanda
  * kategori dan kata transisi di awal/akhir. Memulangkan teks ringkas.
  */
 function cleanSnippet(raw: string, studentNames: string[]): string {
   let out = ` ${raw} `;
 
-  // Buang nama murid (padanan tidak sensitif huruf besar/kecil).
+  // Buang nama anak (padanan tidak sensitif huruf besar/kecil).
   for (const name of studentNames) {
     const n = name.trim();
     if (!n) continue;
@@ -297,7 +303,7 @@ function cleanSnippet(raw: string, studentNames: string[]): string {
  * Penghurai sandaran berasaskan kata kunci berbilang tab — digunakan apabila
  * Gemini sibuk (503). Memecah pertuturan mengikut kata transisi dan
  * mengagihkan setiap cebisan ke tab yang betul, kemudian membersihkan
- * nama murid, penanda masa dan penanda kategori daripada nilai.
+ * nama anak, penanda masa dan penanda kategori daripada nilai.
  */
 function keywordFallbackParse(
   text: string,
@@ -372,51 +378,56 @@ function keywordFallbackParse(
     ) {
       const clean = cleanSnippet(raw, knownStudentNames);
       if (clean) {
-        // Isi KEDUA-DUA medan supaya Aktiviti dan Catatan sepadan.
-        push('aktiviti_anak', { activity: clean });
+        // Tentukan kluster: Aktiviti Luar jika ada kata kunci luar/fizikal.
+        const isLuar =
+          s.includes('aktiviti luar') ||
+          s.includes('padang') ||
+          s.includes('bermain air') ||
+          s.includes('kolam') ||
+          s.includes('taman') ||
+          s.includes('bola') ||
+          s.includes('senaman') ||
+          s.includes('berlari') ||
+          s.includes('melompat');
+        const aktivitiField = isLuar ? 'aktiviti_luar' : 'aktiviti_bebas';
+        push('aktiviti_anak', { [aktivitiField]: clean });
         pushNote('aktiviti_anak', clean);
       }
       continue;
     }
 
-    // ── Kehadiran / Suhu ────────────────────────────────────────
-    const tempMatch = s.match(/(\d{2}[.,]\d)/);
-    if (
-      s.includes('suhu') ||
-      tempMatch ||
-      s.includes('demam') ||
-      s.includes('hadir') ||
-      s.includes('lewat')
-    ) {
-      const fields: Record<string, unknown> = {};
-      if (tempMatch) fields.temperature = parseFloat(tempMatch[1].replace(',', '.'));
-      if (s.includes('tidak hadir')) fields.status = 'Tidak hadir';
-      else if (s.includes('lewat')) fields.status = 'Lewat';
-      else if (s.includes('hadir')) fields.status = 'Hadir';
-      push('kehadiran_suhu', fields);
-      pushNote('kehadiran_suhu', cleanSnippet(raw, knownStudentNames));
-      continue;
-    }
-
-    // ── Kesihatan / Ubat ────────────────────────────────────────
+    // ── Tingkah Laku / Kesihatan ────────────────────────────────
     if (
       s.includes('ubat') ||
       s.includes('sakit') ||
       s.includes('batuk') ||
       s.includes('selesema') ||
-      s.includes('alahan')
+      s.includes('alahan') ||
+      s.includes('demam') ||
+      s.includes('jatuh') ||
+      s.includes('kemalangan') ||
+      s.includes('terhantuk') ||
+      s.includes('cedera') ||
+      s.includes('luka') ||
+      s.includes('lebam') ||
+      s.includes('menangis') ||
+      s.includes('bergaduh')
     ) {
+      const clean = cleanSnippet(raw, knownStudentNames);
+      const fields: Record<string, unknown> = {};
       const conditions: string[] = [];
       if (s.includes('batuk')) conditions.push('batuk');
       if (s.includes('selesema')) conditions.push('selesema');
       if (s.includes('sakit')) conditions.push('sakit');
       if (s.includes('alahan')) conditions.push('alahan');
-      const fields: Record<string, unknown> = {};
-      if (conditions.length) fields.condition = capitalise(conditions.join(' dan '));
-      const medMatch = raw.match(/ubat\s+([\w\s]+?)(?:,|\.|\d|$)/i);
-      if (medMatch) fields.medicine = capitalise(medMatch[1].trim());
-      push('kesihatan_ubat', fields);
-      pushNote('kesihatan_ubat', cleanSnippet(raw, knownStudentNames));
+      if (s.includes('demam')) conditions.push('demam');
+      if (conditions.length) fields.kesihatan = capitalise(conditions.join(' dan '));
+      if (s.includes('jatuh') || s.includes('kemalangan') || s.includes('terhantuk'))
+        fields.kemalangan = clean;
+      if (s.includes('cedera') || s.includes('luka') || s.includes('lebam'))
+        fields.kecederaan = clean;
+      push('tingkah_laku', fields);
+      pushNote('tingkah_laku', clean);
       continue;
     }
 
@@ -430,10 +441,6 @@ function keywordFallbackParse(
       s.includes('sarapan')
     ) {
       const fields: Record<string, unknown> = {};
-      if (s.includes('sarapan')) fields.meal = 'Sarapan';
-      else if (s.includes('tengah hari')) fields.meal = 'Makan tengah hari';
-      else if (s.includes('petang')) fields.meal = 'Minum petang';
-      else if (s.includes('pagi')) fields.meal = 'Minum pagi';
       if (s.includes('habis') || s.includes('siap') || s.includes('kenyang'))
         fields.appetite = 'Makan habis';
       else if (s.includes('separuh')) fields.appetite = 'Makan separuh';
@@ -460,12 +467,12 @@ function keywordFallbackParse(
     // Cebisan tidak dikenali — letak dalam aktiviti anak sebagai lalai.
     const fallbackClean = cleanSnippet(raw, knownStudentNames);
     if (fallbackClean) {
-      push('aktiviti_anak', { activity: fallbackClean });
+      push('aktiviti_anak', { aktiviti_bebas: fallbackClean });
       pushNote('aktiviti_anak', fallbackClean);
     }
   }
 
-  // Ekstrak nama murid: utamakan nama yang dikenali (tenant), kemudian
+  // Ekstrak nama anak: utamakan nama yang dikenali (tenant), kemudian
   // perkataan bermula huruf besar sebagai cadangan tambahan.
   const studentNames: string[] = [];
   const lowerText = text.toLowerCase();
@@ -479,8 +486,8 @@ function keywordFallbackParse(
   if (studentNames.length === 0) {
     const nameMatches = text.match(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b/g) ?? [];
     const stopWords = new Set([
-      'Makan', 'Tidur', 'Hadir', 'Tidak', 'Sila', 'Guru', 'Murid',
-      'Kelas', 'Hari', 'Pagi', 'Petang', 'Malam', 'Suhu', 'Ubat',
+      'Makan', 'Tidur', 'Hadir', 'Tidak', 'Sila', 'Pendidik', 'Anak',
+      'Kelas', 'Hari', 'Pagi', 'Petang', 'Malam', 'Tingkah', 'Laku',
       'Aktiviti', 'Pembelajaran', 'Kesihatan', 'Makluman', 'Luar',
       'Makanan', 'Bermain', 'Kolam', 'Taman', 'Anak',
     ]);
@@ -494,7 +501,7 @@ function keywordFallbackParse(
 /**
  * Bina respons sandaran yang sentiasa berjaya apabila ada transkripsi.
  * Jika penghurai kata kunci tidak dapat mengisi mana-mana tab, teks penuh
- * dimasukkan ke dalam `aktiviti_anak.notes` supaya pertuturan guru tidak hilang.
+ * dimasukkan ke dalam `aktiviti_anak.notes` supaya pertuturan pendidik tidak hilang.
  */
 function buildFallbackResponse(transcript: string, knownStudentNames: string[] = []) {
   const fallback = keywordFallbackParse(transcript, knownStudentNames);
@@ -556,7 +563,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Ambil nama murid tenant semasa — digunakan untuk membuang nama daripada
+  // Ambil nama anak tenant semasa — digunakan untuk membuang nama daripada
   // nilai medan supaya hanya butiran bersih disimpan.
   let knownStudentNames: string[] = [];
   try {
@@ -572,7 +579,7 @@ export async function POST(request: NextRequest) {
       return names;
     });
   } catch {
-    // Gagal mendapatkan nama murid tidak sepatutnya menggagalkan permintaan.
+    // Gagal mendapatkan nama anak tidak sepatutnya menggagalkan permintaan.
     knownStudentNames = [];
   }
 
@@ -594,7 +601,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       parts.push({
-        text: `Tukarkan transkripsi pertuturan guru ini kepada log harian berstruktur:\n\n"${cleanTranscript}"`,
+        text: `Tukarkan transkripsi pertuturan pendidik ini kepada log harian berstruktur:\n\n"${cleanTranscript}"`,
       });
     }
 
@@ -620,7 +627,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Bersihkan data_by_tab: buang tab null, buang medan kosong, sahkan medan,
-    // dan bersihkan nilai teks (buang nama murid, penanda masa/kategori).
+    // dan bersihkan nilai teks (buang nama anak, penanda masa/kategori).
     const dataByTab: Partial<Record<TabKey, Record<string, unknown>>> = {};
     const rawTabs = parsed.data_by_tab ?? {};
     for (const key of TAB_KEYS) {

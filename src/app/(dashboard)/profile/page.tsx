@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: 'Kad Profil' };
 const ROLE_LABEL: Record<UserRole, string> = {
   super_admin: 'Super Admin',
   admin_papn: 'Pentadbir PAPN',
-  teacher: 'Guru / Pengasuh',
+  teacher: 'Pendidik / Pengasuh',
   parent: 'Ibu Bapa / Penjaga',
 };
 

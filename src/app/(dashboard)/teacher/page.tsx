@@ -7,7 +7,7 @@ import { LogEntryForm } from '@/components/teacher/log-entry-form';
 import type { EmergencyContact } from '@/components/teacher/student-card';
 import type { ClassRow, Student } from '@/lib/types';
 
-export const metadata: Metadata = { title: 'Ruang Guru' };
+export const metadata: Metadata = { title: 'Ruang Pendidik' };
 
 export default async function TeacherPage() {
   const profile = await getCurrentUser();
@@ -50,7 +50,7 @@ export default async function TeacherPage() {
     classNames[c.id] = c.class_name;
   });
 
-  // Hubungan kecemasan untuk semua murid yang dipaparkan (jika jadual wujud).
+  // Hubungan kecemasan untuk semua anak yang dipaparkan (jika jadual wujud).
   const contactsByStudent: Record<string, EmergencyContact[]> = {};
   if (students.length) {
     const { data: contacts } = await admin
@@ -74,10 +74,10 @@ export default async function TeacherPage() {
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-          Ruang Guru / Pengasuh
+          Ruang Pendidik / Pengasuh
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Selamat datang, {profile?.full_name ?? 'Guru'}.
+          Selamat datang, {profile?.full_name ?? 'Pendidik'}.
         </p>
       </header>
 
@@ -101,7 +101,7 @@ export default async function TeacherPage() {
           <p className="mt-3 text-2xl font-bold text-slate-900">
             {students.length}
           </p>
-          <p className="text-xs text-slate-500">Murid berdaftar</p>
+          <p className="text-xs text-slate-500">Anak berdaftar</p>
         </div>
       </section>
 

@@ -17,7 +17,7 @@ interface StudentTableProps {
   classNames: Record<string, string>;
 }
 
-/** Jadual pengurusan murid dengan carian, penapis dan CRUD. */
+/** Jadual pengurusan anak dengan carian, penapis dan CRUD. */
 export function StudentTable({
   students,
   classes,
@@ -96,11 +96,11 @@ export function StudentTable({
 
   return (
     <section className="space-y-4">
-      {/* Kiraan jumlah murid */}
+      {/* Kiraan jumlah anak */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="badge-slate">
           <Users className="mr-1 h-3.5 w-3.5" aria-hidden />
-          {students.length} murid berdaftar
+          {students.length} anak berdaftar
         </span>
         {filtered.length !== students.length && (
           <span className="badge-slate">{filtered.length} dipaparkan</span>
@@ -128,7 +128,7 @@ export function StudentTable({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cari nama atau MyKid…"
-            aria-label="Cari murid"
+            aria-label="Cari anak"
             className="input pl-9"
           />
         </div>
@@ -147,7 +147,7 @@ export function StudentTable({
         </select>
         <button type="button" onClick={openAdd} className="btn shrink-0">
           <Plus className="h-4 w-4" aria-hidden />
-          Tambah Murid Baru
+          Tambah Anak Baru
         </button>
       </div>
 
@@ -158,7 +158,7 @@ export function StudentTable({
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <th scope="col" className="px-4 py-3 font-semibold">
-                  Nama Murid &amp; MyKid
+                  Nama Anak &amp; MyKid
                 </th>
                 <th scope="col" className="px-4 py-3 font-semibold">
                   Kelas / Kumpulan Umur
@@ -181,7 +181,7 @@ export function StudentTable({
                     colSpan={5}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
-                    Tiada murid sepadan dengan carian anda.
+                    Tiada anak sepadan dengan carian anda.
                   </td>
                 </tr>
               ) : (
@@ -299,7 +299,7 @@ export function StudentTable({
               id="delete-dialog-title"
               className="text-base font-bold text-slate-900"
             >
-              Padam Murid?
+              Padam Anak?
             </h2>
             <p className="mt-2 text-sm text-slate-600">
               Adakah anda pasti mahu memadam{' '}

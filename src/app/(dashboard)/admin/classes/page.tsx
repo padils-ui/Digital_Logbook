@@ -23,7 +23,7 @@ export default async function AdminClassesPage() {
 
   const classes = (classesRes.data ?? []) as ClassRow[];
 
-  // Kira bilangan murid bagi setiap kelas.
+  // Kira bilangan anak bagi setiap kelas.
   const studentCounts: Record<string, number> = {};
   (studentsRes.data ?? []).forEach((s: { class_id: string | null }) => {
     if (s.class_id) {
@@ -38,7 +38,7 @@ export default async function AdminClassesPage() {
           Pengurusan Kelas
         </h1>
         <p className="mt-1 text-sm text-slate-600">
-          Urus kelas dan kumpulan umur murid di pusat anda.
+          Urus kelas dan kumpulan umur anak di pusat anda.
         </p>
       </header>
 
