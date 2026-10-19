@@ -31,3 +31,29 @@ export interface AttendanceInput {
   suhu_balik?: string | null;
   catatan?: string | null;
 }
+
+/** Ringkasan metrik analitik kehadiran bagi satu tempoh. */
+export interface AttendanceSummaryStats {
+  /** Jumlah anak berdaftar dalam skop (tenant / kelas). */
+  totalStudents: number;
+  hadirCount: number;
+  tidakHadirCount: number;
+  lewatCount: number;
+  /** Peratus kehadiran keseluruhan: (Hadir + Lewat) / jumlah rekod × 100. */
+  attendanceRate: number;
+  /** Bilangan anak unik dengan suhu ≥ 37.5°C (tiba atau balik). */
+  feverCount: number;
+}
+
+/** Satu titik data harian untuk carta Recharts. */
+export interface AttendanceDailyChartPoint {
+  /** Tarikh ISO (YYYY-MM-DD). */
+  date: string;
+  /** Label paparan, contoh: 'Isnin (19 Oct)'. */
+  label: string;
+  hadir: number;
+  tidakHadir: number;
+  lewat: number;
+  avgSuhuTiba: number | null;
+  avgSuhuBalik: number | null;
+}
