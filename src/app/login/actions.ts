@@ -25,21 +25,26 @@ const VALID_ROLES: UserRole[] = [
 const PHONE_EMAIL_DOMAIN = 'papn.local';
 
 /**
- * Membaca peranan pengguna daripada `public.users` menggunakan klien
- * service role (memintas RLS). Memulangkan `null` jika tiada profil.
+ * Membaca peranan dan status aktif pengguna daripada `public.users` menggunakan
+ * klien service role (memintas RLS). Memulangkan `null` jika tiada profil.
  */
-async function fetchRole(userId: string): Promise<UserRole | null> {
+async function fetchAccount(userId: string): Promise<{
+  role: UserRole;
+  isActive: boolean;
+} | null> {
   const admin = createAdminClient();
   const { data: profile, error } = await admin
     .from('users')
-    .select('role')
+    .select('role, is_active')
     .eq('id', userId)
     .maybeSingle();
 
   if (error) throw error;
 
   const role = profile?.role as UserRole | undefined;
-  return role && VALID_ROLES.includes(role) ? role : null;
+  if (!role || !VALID_ROLES.includes(role)) return null;
+
+  return { role, isActive: profile?.is_active !== false };
 }
 
 
@@ -127,12 +132,12 @@ export async function loginAction(
 
   // Sahkan peranan menggunakan klien pentadbir (service role) supaya
   // pengesahan tidak terjejas oleh kependaman cookie/RLS selepas log masuk.
-  let actualRole: UserRole | null = null;
+  let account: { role: UserRole; isActive: boolean } | null = null;
   try {
-    actualRole = await fetchRole(signedInUserId);
-    console.log('[loginAction] peranan dalam pangkalan data:', actualRole);
+    account = await fetchAccount(signedInUserId);
+    console.log('[loginAction] peranan dalam pangkalan data:', account?.role);
   } catch (err) {
-    console.error('[loginAction] fetchRole gagal:', err);
+    console.error('[loginAction] fetchAccount gagal:', err);
     await supabase.auth.signOut();
     return {
       error:
@@ -140,7 +145,7 @@ export async function loginAction(
     };
   }
 
-  if (!actualRole) {
+  if (!account) {
     console.log('[loginAction] tiada profil untuk user.id:', signedInUserId);
     await supabase.auth.signOut();
     return {
@@ -148,6 +153,17 @@ export async function loginAction(
         'Akaun anda belum didaftarkan dalam sistem. Sila hubungi pentadbir PAPN.',
     };
   }
+
+  if (!account.isActive) {
+    console.log('[loginAction] akaun dinyahaktifkan:', signedInUserId);
+    await supabase.auth.signOut();
+    return {
+      error:
+        'Akaun anda telah dinyahaktifkan. Sila hubungi pentadbir PAPN.',
+    };
+  }
+
+  const actualRole = account.role;
 
   if (actualRole !== role) {
     console.log('[loginAction] peranan tidak sepadan — pilih:', role, 'sebenar:', actualRole);

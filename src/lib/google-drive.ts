@@ -22,6 +22,10 @@ export function tenantRootFolderName(tenantName: string): string {
   return `[${tenantName}]`;
 }
 
+/** Nama folder laporan pentaksiran di bawah folder root tenant. */
+export const LAPORAN_PENTAKSIRAN_FOLDER_NAME = 'Laporan_Pentaksiran';
+
+
 /**
  * Bina klien Drive yang disahkan menggunakan OAuth2 (refresh token).
  *
@@ -205,6 +209,41 @@ export async function getOrCreateStudentDriveFolder({
   return studentFolderId;
 }
 
+export interface AssessmentReportFolderInput {
+  /** ID folder root tenant (`[Nama Pusat]`). */
+  rootFolderId: string;
+  /** Tahun laporan. */
+  year: number | string;
+  /** Nama kelas anak. */
+  className: string;
+}
+
+/**
+ * Dapatkan (atau cipta) folder laporan pentaksiran mengikut laluan:
+ *   [Tenant] / Laporan_Pentaksiran / [Year] / [Class]
+ * dan pulangkan ID folder kelas.
+ */
+export async function getOrCreateAssessmentReportFolder({
+  rootFolderId,
+  year,
+  className,
+}: AssessmentReportFolderInput): Promise<string> {
+  const drive = getDriveClient();
+
+  const reportFolderId = await findOrCreateFolder(
+    drive,
+    LAPORAN_PENTAKSIRAN_FOLDER_NAME,
+    rootFolderId
+  );
+  const yearFolderId = await findOrCreateFolder(
+    drive,
+    String(year),
+    reportFolderId
+  );
+
+  return findOrCreateFolder(drive, className, yearFolderId);
+}
+
 export interface UploadFileInput {
   /** ID folder sasaran dalam Google Drive. */
   folderId: string;
@@ -266,6 +305,11 @@ export async function uploadFileToDrive({
 /** Bina pautan terus ke folder Google Drive. */
 export function driveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`;
+}
+
+/** Bina pautan paparan fail Google Drive. */
+export function driveFileUrl(fileId: string): string {
+  return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
 /**

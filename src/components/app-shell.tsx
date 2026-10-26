@@ -4,16 +4,21 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
+  Activity,
   BookOpenText,
   Building2,
   ClipboardCheck,
+  FileText,
   GraduationCap,
   IdCard,
   LayoutDashboard,
   LogOut,
   Menu,
+  Settings,
+  UserCog,
   Users,
   UserRound,
+  UsersRound,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -34,6 +39,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/admin/classes', label: 'Pengurusan Kelas', icon: GraduationCap },
     { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
     { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
+    { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
@@ -43,12 +49,14 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/admin/classes', label: 'Pengurusan Kelas', icon: GraduationCap },
     { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
     { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
+    { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
   teacher: [
     { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
     { href: '/teacher/kehadiran', label: 'Kehadiran Anak', icon: ClipboardCheck },
+    { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
@@ -57,6 +65,17 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
   ],
 };
+
+/**
+ * Seksyen khas "PENTADBIRAN PAPN" — hanya dipaparkan kepada super_admin dan
+ * admin_papn. Item navigasi sedia ada tidak diubah.
+ */
+const ADMIN_SECTION_ITEMS: NavItem[] = [
+  { href: '/admin/pendidik', label: 'Pengurusan Pendidik', icon: UserCog },
+  { href: '/admin/ibu-bapa', label: 'Pengurusan Ibu Bapa', icon: UsersRound },
+  { href: '/admin/pemantauan', label: 'Pemantauan Log & AI', icon: Activity },
+  { href: '/admin/tetapan', label: 'Tetapan PAPN', icon: Settings },
+];
 
 const ROLE_LABEL: Record<UserRole, string> = {
   super_admin: 'Super Admin',
@@ -79,6 +98,8 @@ export function AppShell({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const items = NAV_BY_ROLE[role];
+  const adminItems =
+    role === 'super_admin' || role === 'admin_papn' ? ADMIN_SECTION_ITEMS : [];
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -88,29 +109,38 @@ export function AppShell({
     window.location.href = '/login';
   }
 
+  function renderItem(item: NavItem) {
+    const Icon = item.icon;
+    const active =
+      pathname === item.href || pathname.startsWith(`${item.href}/`);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setOpen(false)}
+        aria-current={active ? 'page' : undefined}
+        className={`flex min-h-touch items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+          active ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+        }`}
+      >
+        <Icon className="h-5 w-5 shrink-0" aria-hidden />
+        {item.label}
+      </Link>
+    );
+  }
+
   const nav = (
-    <nav className="flex flex-col gap-1" aria-label="Navigasi utama">
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active =
-          pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            aria-current={active ? 'page' : undefined}
-            className={`flex min-h-touch items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active
-                ? 'bg-brand-600 text-white'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            <Icon className="h-5 w-5 shrink-0" aria-hidden />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav aria-label="Navigasi utama">
+      <div className="flex flex-col gap-1">{items.map(renderItem)}</div>
+
+      {adminItems.length > 0 ? (
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Pentadbiran PAPN
+          </p>
+          <div className="flex flex-col gap-1">{adminItems.map(renderItem)}</div>
+        </div>
+      ) : null}
     </nav>
   );
 

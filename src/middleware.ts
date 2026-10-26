@@ -8,7 +8,16 @@ type Role = 'super_admin' | 'admin_papn' | 'teacher' | 'parent';
  * Laluan awam — middleware TIDAK akan mengubah hala atau menyekat
  * laluan-laluan ini tanpa mengira status sesi.
  */
-const PUBLIC_PATHS = ['/login', '/auth/callback', '/offline', '/api/auth'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/auth/callback',
+  '/offline',
+  '/api/auth',
+  // Inngest mengesahkan permintaan sendiri melalui INNGEST_SIGNING_KEY.
+  '/api/inngest',
+  // Pencetus cron manual — dilindungi oleh CRON_SECRET dalam route handler.
+  '/api/cron',
+];
 
 /** Laluan lalai mengikut peranan selepas log masuk. */
 const ROLE_HOME: Record<Role, string> = {

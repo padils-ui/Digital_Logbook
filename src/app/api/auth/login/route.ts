@@ -93,11 +93,12 @@ export async function POST(request: NextRequest) {
   // --- Langkah 2: Semak / auto-daftar profil dalam public.users ---
   const admin = createAdminClient();
   let actualRole: UserRole | null = null;
+  let isActive = true;
 
   try {
     const { data: existingProfile, error: fetchErr } = await admin
       .from('users')
-      .select('role')
+      .select('role, is_active')
       .eq('id', userId)
       .maybeSingle();
 
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
     if (existingProfile) {
       const r = existingProfile.role as UserRole | undefined;
       actualRole = r && VALID_ROLES.includes(r) ? r : null;
+      isActive = existingProfile.is_active !== false;
       console.log('[api/auth/login] peranan dalam pangkalan data:', actualRole);
     } else {
       console.log('[api/auth/login] tiada profil, cuba auto-daftar…');
@@ -179,6 +181,15 @@ export async function POST(request: NextRequest) {
     await supabase.auth.signOut();
     return NextResponse.json(
       { error: 'Peranan akaun tidak sah. Sila hubungi pentadbir PAPN.' },
+      { status: 403 }
+    );
+  }
+
+  if (!isActive) {
+    console.log('[api/auth/login] akaun dinyahaktifkan:', userId);
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      { error: 'Akaun anda telah dinyahaktifkan. Sila hubungi pentadbir PAPN.' },
       { status: 403 }
     );
   }

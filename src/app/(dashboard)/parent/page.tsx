@@ -64,7 +64,7 @@ export default async function ParentDashboardPage() {
         studentId: log.student_id,
         studentName: log.students?.full_name || 'Anak',
         logIds: [],
-        isReviewed: true, // Default to true, set false if any log is unreviewed
+        isReviewed: true,
         parentComment: null,
         entries: [],
       });
@@ -74,12 +74,10 @@ export default async function ParentDashboardPage() {
     group.logIds.push(log.id);
     group.entries.push(log);
 
-    // If any single log entry for the day is not reviewed, the daily report is pending
     if (!log.parent_reviewed) {
       group.isReviewed = false;
     }
 
-    // Capture existing parent comment
     if (log.parent_comment) {
       group.parentComment = log.parent_comment;
     }

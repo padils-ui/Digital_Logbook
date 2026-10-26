@@ -8,6 +8,11 @@ import {
   type Color,
 } from 'pdf-lib';
 import { getCategory, type LogCategory } from '@/lib/log-categories';
+import {
+  PERMATA_DOMAINS,
+  type PermataDomain,
+  type RedFlag,
+} from '@/lib/validations/assessment';
 
 /**
  * Penjana PDF ringkasan log harian PAPN (satu halaman A4) menggunakan pdf-lib.
@@ -582,4 +587,405 @@ export async function generateDailyLogPdf(data: DailyLogPdfData): Promise<Buffer
 /** Label kategori untuk kegunaan luaran (cth. nama fail). */
 export function categoryLabel(category: LogCategory): string {
   return CATEGORY_LABELS[category] ?? getCategory(category).label;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Laporan Pentaksiran Mingguan (PERMATA)
+// ══════════════════════════════════════════════════════════════
+
+/** Label Bahasa Melayu bagi setiap domain PERMATA. */
+const PERMATA_LABELS: Record<PermataDomain, string> = {
+  fizikal: 'Fizikal',
+  bahasa: 'Bahasa',
+  sahsiah: 'Sahsiah',
+  awal_matematik: 'Awal Matematik',
+  deria: 'Deria',
+  kreativiti: 'Kreativiti',
+};
+
+/** Warna teks bendera merah keterukan tinggi/sederhana. */
+const COLOR_RED_FLAG = rgb(0.75, 0.13, 0.2);
+
+/** Data yang diperlukan untuk menjana PDF laporan pentaksiran. */
+export interface AssessmentReportPdfData {
+  center: PapnCenterInfo;
+  studentName: string;
+  className: string;
+  weekNumber: number;
+  year: number;
+  startDate: string;
+  endDate: string;
+  domainScores: Partial<Record<PermataDomain, number | null>>;
+  summary: string;
+  teacherNotes?: string | null;
+  suggestionsNextWeek: string[];
+  redFlags: RedFlag[];
+  teacherName: string;
+}
+
+/** Konteks lukisan yang boleh bertukar halaman apabila ruang tidak cukup. */
+interface PdfContext {
+  doc: PDFDocument;
+  helper: PageHelper;
+  fonts: { regular: PDFFont; bold: PDFFont };
+}
+
+/** Tambah halaman baharu jika ruang menegak tidak mencukupi. */
+function ensureSpace(context: PdfContext, needed: number): void {
+  if (context.helper.cursorY - needed >= MARGIN_BOTTOM + 40) return;
+  context.helper = new PageHelper(
+    context.doc.addPage(PageSizes.A4),
+    context.fonts
+  );
+}
+
+/** Tajuk seksyen dengan garis pemisah. */
+function drawSectionTitle(context: PdfContext, title: string): void {
+  const { helper } = context;
+  helper.text(title, {
+    size: FONT_HEADING,
+    bold: true,
+    color: COLOR_DEEP_BLUE,
+  });
+  helper.rule();
+}
+
+/** Pengepala dokumen beserta maklumat pusat. */
+function drawAssessmentHeader(context: PdfContext, data: AssessmentReportPdfData) {
+  const { helper } = context;
+
+  helper.rect(0, PAGE_HEIGHT - 72, PAGE_WIDTH, 72, COLOR_DEEP_BLUE);
+  helper.cursorY = PAGE_HEIGHT - 30;
+  helper.text('LAPORAN PENTAKSIRAN MINGGUAN', {
+    size: FONT_TITLE,
+    bold: true,
+    color: COLOR_WHITE,
+  });
+  helper.text('Kurikulum PERMATA Negara', {
+    size: FONT_SMALL,
+    color: rgb(0.78, 0.86, 1),
+  });
+
+  helper.cursorY = PAGE_HEIGHT - 96;
+  helper.text(data.center.name, {
+    size: FONT_HEADING,
+    bold: true,
+    color: COLOR_CHARCOAL,
+  });
+  if (data.center.address) {
+    helper.text(data.center.address, { size: FONT_SMALL, color: COLOR_MUTED });
+  }
+  helper.space(8);
+}
+
+/** Kad maklumat anak dan tempoh laporan. */
+function drawAssessmentStudentCard(
+  context: PdfContext,
+  data: AssessmentReportPdfData
+) {
+  const { helper } = context;
+  const top = helper.cursorY;
+  const height = 62;
+  const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 10;
+
+  helper.rect(MARGIN_X, top - height, CONTENT_WIDTH, height, COLOR_SLATE);
+
+  const labelY = top - 18;
+  const valueY = top - 33;
+
+  helper.text('Nama Anak', {
+    x: MARGIN_X + 12,
+    y: labelY,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+  helper.text(data.studentName, {
+    x: MARGIN_X + 12,
+    y: valueY,
+    size: FONT_HEADING,
+    bold: true,
+    color: COLOR_CHARCOAL,
+  });
+
+  helper.text('Kelas', {
+    x: rightX,
+    y: labelY,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+  helper.text(data.className, {
+    x: rightX,
+    y: valueY,
+    size: FONT_BODY,
+    bold: true,
+    color: COLOR_CHARCOAL,
+  });
+
+  helper.text('Minggu', {
+    x: MARGIN_X + 12,
+    y: top - 44,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+  helper.text(`Minggu ${data.weekNumber} / ${data.year}`, {
+    x: MARGIN_X + 58,
+    y: top - 44,
+    size: FONT_SMALL,
+    bold: true,
+    color: COLOR_CHARCOAL,
+  });
+
+  helper.text('Tempoh', {
+    x: rightX,
+    y: top - 44,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+  helper.text(
+    `${formatDateMs(data.startDate)} – ${formatDateMs(data.endDate)}`,
+    {
+      x: rightX + 42,
+      y: top - 44,
+      size: FONT_SMALL,
+      bold: true,
+      color: COLOR_CHARCOAL,
+    }
+  );
+
+  helper.cursorY = top - height - 14;
+}
+
+/** Bar mendatar bagi enam domain PERMATA. */
+function drawAssessmentDomainScores(
+  context: PdfContext,
+  scores: Partial<Record<PermataDomain, number | null>>
+) {
+  const { helper } = context;
+  drawSectionTitle(context, 'Skor Domain PERMATA');
+
+  const labelWidth = 100;
+  const trackWidth = CONTENT_WIDTH - labelWidth - 56;
+
+  for (const domain of PERMATA_DOMAINS) {
+    const raw = scores[domain];
+    const hasScore = typeof raw === 'number' && !Number.isNaN(raw);
+    const value = hasScore ? Math.min(100, Math.max(0, raw)) : 0;
+
+    const y = helper.cursorY - 10;
+    helper.text(PERMATA_LABELS[domain], {
+      x: MARGIN_X,
+      y,
+      size: FONT_BODY,
+      color: COLOR_CHARCOAL,
+    });
+
+    const trackX = MARGIN_X + labelWidth;
+    helper.rect(trackX, y - 1, trackWidth, 7, COLOR_SLATE);
+    if (value > 0) {
+      helper.rect(trackX, y - 1, (trackWidth * value) / 100, 7, COLOR_BRAND);
+    }
+
+    helper.text(hasScore ? `${value}` : 'Tiada data', {
+      x: trackX + trackWidth + 8,
+      y,
+      size: FONT_SMALL,
+      bold: hasScore,
+      color: hasScore ? COLOR_CHARCOAL : COLOR_MUTED,
+    });
+
+    helper.cursorY = y - 8;
+  }
+
+  helper.space(8);
+}
+
+/** Perenggan teks dengan tajuk seksyen. */
+function drawAssessmentParagraph(
+  context: PdfContext,
+  title: string,
+  body: string,
+  fallback: string
+) {
+  const { helper } = context;
+  const text = body.trim() || fallback;
+
+  ensureSpace(context, 70);
+  drawSectionTitle(context, title);
+  helper.paragraph(text, { color: COLOR_CHARCOAL, maxWidth: CONTENT_WIDTH - 8 });
+  helper.space(8);
+}
+
+/** Senarai cadangan untuk minggu hadapan. */
+function drawAssessmentSuggestions(
+  context: PdfContext,
+  suggestions: string[]
+) {
+  const { helper } = context;
+  const items = suggestions.map((s) => s.trim()).filter(Boolean);
+  if (items.length === 0) return;
+
+  ensureSpace(context, 60);
+  drawSectionTitle(context, 'Cadangan Minggu Hadapan');
+  for (const item of items) {
+    const bulletY = helper.cursorY;
+    helper.text('•', {
+      x: MARGIN_X,
+      y: bulletY,
+      size: FONT_BODY,
+      color: COLOR_BRAND,
+    });
+    helper.paragraph(item, {
+      x: MARGIN_X + 12,
+      maxWidth: CONTENT_WIDTH - 12,
+      color: COLOR_CHARCOAL,
+    });
+    helper.space(3);
+  }
+  helper.space(6);
+}
+
+/** Kotak amaran bagi bendera merah (red flag). */
+function drawAssessmentRedFlags(context: PdfContext, redFlags: RedFlag[]) {
+  if (redFlags.length === 0) return;
+  const { helper } = context;
+
+  ensureSpace(context, 80);
+  drawSectionTitle(context, 'Perhatian / Bendera Merah');
+
+  for (const flag of redFlags) {
+    ensureSpace(context, 64);
+    const severityLabel =
+      flag.severity === 'HIGH'
+        ? 'TINGGI'
+        : flag.severity === 'MEDIUM'
+          ? 'SEDERHANA'
+          : 'RENDAH';
+    const severityColor = flag.severity === 'LOW' ? COLOR_AMBER : COLOR_RED_FLAG;
+
+    const top = helper.cursorY;
+    const boxHeight = 46;
+    helper.rect(MARGIN_X, top - boxHeight, CONTENT_WIDTH, boxHeight, COLOR_AMBER_BG);
+
+    helper.text(`[${severityLabel}] ${flag.flag}`, {
+      x: MARGIN_X + 10,
+      y: top - 15,
+      size: FONT_BODY,
+      bold: true,
+      color: severityColor,
+    });
+    helper.cursorY = top - 26;
+    helper.paragraph(`Cadangan: ${flag.recommendation}`, {
+      x: MARGIN_X + 10,
+      size: FONT_SMALL,
+      maxWidth: CONTENT_WIDTH - 20,
+      color: COLOR_CHARCOAL,
+      lineHeight: 11,
+    });
+    helper.cursorY = top - boxHeight - 10;
+  }
+}
+
+/** Blok tandatangan guru dan ibu bapa / penjaga. */
+function drawAssessmentSignature(context: PdfContext, teacherName: string) {
+  const { helper } = context;
+  ensureSpace(context, 90);
+
+  const top = helper.cursorY - 20;
+  const columnWidth = (CONTENT_WIDTH - 30) / 2;
+
+  helper.text('Disemak oleh:', {
+    x: MARGIN_X,
+    y: top,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+  helper.text('Disahkan oleh Ibu Bapa / Penjaga:', {
+    x: MARGIN_X + columnWidth + 30,
+    y: top,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+
+  const lineY = top - 34;
+  helper.page.drawLine({
+    start: { x: MARGIN_X, y: lineY },
+    end: { x: MARGIN_X + columnWidth, y: lineY },
+    thickness: 0.8,
+    color: COLOR_RULE,
+  });
+  helper.page.drawLine({
+    start: { x: MARGIN_X + columnWidth + 30, y: lineY },
+    end: { x: MARGIN_X + columnWidth * 2 + 30, y: lineY },
+    thickness: 0.8,
+    color: COLOR_RULE,
+  });
+
+  helper.text(teacherName, {
+    x: MARGIN_X,
+    y: lineY - 14,
+    size: FONT_SMALL,
+    bold: true,
+    color: COLOR_CHARCOAL,
+  });
+  helper.text('Guru / Pengasuh', {
+    x: MARGIN_X,
+    y: lineY - 25,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+
+  helper.text('Tandatangan & Tarikh', {
+    x: MARGIN_X + columnWidth + 30,
+    y: lineY - 14,
+    size: FONT_SMALL,
+    color: COLOR_MUTED,
+  });
+}
+
+/**
+ * Jana PDF laporan pentaksiran mingguan (A4) menggunakan pdf-lib.
+ * Mengembalikan dokumen sebagai `Buffer` Node.js.
+ */
+export async function generateAssessmentReportPdf(
+  data: AssessmentReportPdfData
+): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage(PageSizes.A4);
+
+  const fonts = {
+    regular: await doc.embedFont(StandardFonts.Helvetica),
+    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+  };
+
+  const context: PdfContext = {
+    doc,
+    fonts,
+    helper: new PageHelper(page, fonts),
+  };
+
+  drawAssessmentHeader(context, data);
+  drawAssessmentStudentCard(context, data);
+  drawAssessmentDomainScores(context, data.domainScores);
+  drawAssessmentParagraph(
+    context,
+    'Ringkasan Perkembangan',
+    data.summary,
+    'Tiada ringkasan disediakan.'
+  );
+  if (data.teacherNotes && data.teacherNotes.trim()) {
+    drawAssessmentParagraph(
+      context,
+      'Catatan Guru',
+      data.teacherNotes,
+      ''
+    );
+  }
+  drawAssessmentSuggestions(context, data.suggestionsNextWeek);
+  drawAssessmentRedFlags(context, data.redFlags);
+  drawAssessmentSignature(context, data.teacherName);
+
+  drawFooter(context.helper);
+
+  const pdfBytes = await doc.save();
+  return Buffer.from(pdfBytes);
 }
