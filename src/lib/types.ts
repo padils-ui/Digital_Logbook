@@ -143,8 +143,10 @@ export interface Announcement {
   title: string;
   content: string;
   target_class_id: string | null;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
+  /** Benar jika pengumuman disematkan pada widget Papan Pemuka. */
+  is_pinned: boolean;
 }
 
 /** Tindakan yang direkodkan oleh trigger `assessment_audit_logs`. */
@@ -240,5 +242,50 @@ export interface AcademicCalendarRow {
   /** Benar jika hari ini bukan hari persekolahan. */
   is_holiday: boolean;
   created_at: string;
+}
+
+/** Prestasi kehadiran bagi satu kelas pada Papan Pemuka. */
+export interface ClassAttendanceSummary {
+  class_id: string;
+  class_name: string;
+  /** Jumlah anak berdaftar dalam kelas. */
+  total_students: number;
+  hadir: number;
+  lewat: number;
+  tidak_hadir: number;
+  /** Peratus kehadiran (Hadir + Lewat) berbanding jumlah anak. */
+  peratus: number;
+  /** Bilangan log harian yang telah dihantar hari ini. */
+  logs_today: number;
+  /** Benar jika setiap anak dalam kelas mempunyai log hari ini. */
+  log_lengkap: boolean;
+}
+
+/** Satu titik data trend kehadiran & log harian. */
+export interface AttendanceTrendPoint {
+  /** Tarikh ISO `YYYY-MM-DD`. */
+  date: string;
+  /** Label paksi ringkas, contoh `23 Okt`. */
+  label: string;
+  /** Peratus kehadiran (Hadir + Lewat) berbanding anak berdaftar. */
+  peratus_kehadiran: number;
+  /** Peratus log harian diterima berbanding anak berdaftar. */
+  peratus_log: number;
+}
+
+/** Potongan carta donut (label + bilangan). */
+export interface DistributionSlice {
+  label: string;
+  value: number;
+}
+
+/** Status kemaskini log harian bagi seorang pendidik. */
+export interface TeacherLogStatusRow {
+  teacher_id: string;
+  teacher_name: string;
+  /** Nama kelas yang dipertanggungjawabkan (dipisah koma). */
+  class_names: string;
+  /** Benar jika pendidik telah menghantar sekurang-kurangnya satu log hari ini. */
+  lengkap: boolean;
 }
 

@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/auth';
-import type { CenterSettings } from '@/lib/types';
+import { addDays } from '@/lib/week-window';
+import type { Announcement, CenterSettings } from '@/lib/types';
 
 /** Baldi storan aset pusat (kepala surat & logo). */
 const BUCKET = 'center-assets';
@@ -17,6 +18,8 @@ const ALLOWED_IMAGE_MIME: Record<string, string> = {
 };
 /** Kod ralat PostgreSQL bagi pelanggaran kekangan unik. */
 const UNIQUE_VIOLATION = '23505';
+/** Had maksimum hari bagi satu julat catatan takwim. */
+const MAX_CALENDAR_RANGE_DAYS = 90;
 
 export interface CenterSettingsInput {
   center_name: string;
@@ -28,10 +31,18 @@ export interface CenterSettingsInput {
 }
 
 export interface CalendarEntryInput {
-  /** Tarikh ISO `YYYY-MM-DD`. */
-  date: string;
+  /** Tarikh mula ISO `YYYY-MM-DD`. */
+  start_date: string;
+  /** Tarikh tamat ISO `YYYY-MM-DD` (inklusif). */
+  end_date: string;
   event_name: string;
   is_holiday: boolean;
+}
+
+export interface AnnouncementInput {
+  title: string;
+  content: string;
+  is_pinned: boolean;
 }
 
 /**
@@ -345,6 +356,107 @@ export async function removeLetterhead(): Promise<SettingsActionResult> {
   return { success: true };
 }
 
+/** Senarai lajur pengumuman yang dipulangkan kepada klien. */
+const ANNOUNCEMENT_COLUMNS =
+  'id, tenant_id, title, content, target_class_id, created_by, created_at, is_pinned';
+
+/** Cipta pengumuman pusat baharu bagi tenant semasa. */
+export async function createAnnouncement(
+  input: AnnouncementInput
+): Promise<SettingsActionResult<Announcement>> {
+  const { profile, error } = await requireAdmin();
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
+
+  const title = input.title.trim();
+  if (!title) {
+    return { success: false, error: 'Tajuk pengumuman wajib diisi.' };
+  }
+
+  const content = input.content.trim();
+  if (!content) {
+    return { success: false, error: 'Kandungan pengumuman wajib diisi.' };
+  }
+
+  const admin = createAdminClient();
+  const { data, error: insertError } = await admin
+    .from('announcements')
+    .insert({
+      tenant_id: profile.tenant_id,
+      title,
+      content,
+      is_pinned: input.is_pinned,
+      created_by: profile.id,
+    })
+    .select(ANNOUNCEMENT_COLUMNS)
+    .single();
+
+  if (insertError) {
+    return {
+      success: false,
+      error: `Gagal menyimpan pengumuman: ${insertError.message}`,
+    };
+  }
+
+  revalidatePath('/admin/tetapan');
+  revalidatePath('/dashboard');
+  return { success: true, data: data as Announcement };
+}
+
+/** Semak / nyahsemak pengumuman pada widget Papan Pemuka. */
+export async function toggleAnnouncementPin(
+  id: string,
+  isPinned: boolean
+): Promise<SettingsActionResult> {
+  const { profile, error } = await requireAdmin();
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
+
+  const admin = createAdminClient();
+  const { data, error: updateError } = await admin
+    .from('announcements')
+    .update({ is_pinned: isPinned })
+    .eq('id', id)
+    .eq('tenant_id', profile.tenant_id)
+    .select('id');
+
+  if (updateError) {
+    return { success: false, error: `Gagal mengemas kini pengumuman: ${updateError.message}` };
+  }
+
+  if (!data || data.length === 0) {
+    return { success: false, error: 'Pengumuman tidak dijumpai untuk pusat anda.' };
+  }
+
+  revalidatePath('/admin/tetapan');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+/** Hapus pengumuman pusat milik tenant semasa. */
+export async function deleteAnnouncement(id: string): Promise<SettingsActionResult> {
+  const { profile, error } = await requireAdmin();
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
+
+  const admin = createAdminClient();
+  const { data, error: deleteError } = await admin
+    .from('announcements')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', profile.tenant_id)
+    .select('id');
+
+  if (deleteError) {
+    return { success: false, error: `Gagal memadam pengumuman: ${deleteError.message}` };
+  }
+
+  if (!data || data.length === 0) {
+    return { success: false, error: 'Pengumuman tidak dijumpai untuk pusat anda.' };
+  }
+
+  revalidatePath('/admin/tetapan');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
 /**
  * Muat naik logo pusat / ikon aplikasi ke baldi `center-assets`.
  * Laluan bermula dengan `tenant_id` supaya dasar storan mengasingkan tenant.
@@ -470,15 +582,65 @@ export async function removeLogo(): Promise<SettingsActionResult> {
   return { success: true };
 }
 
-/** Tambah satu catatan takwim akademik bagi tenant semasa. */
+/**
+ * Kembangkan julat tarikh menjadi senarai tarikh ISO (inklusif).
+ * Memulangkan `null` jika tarikh tidak sah, terbalik, atau melebihi had.
+ */
+function expandDateRange(startDate: string, endDate: string): string[] | null {
+  if (!isValidIsoDate(startDate) || !isValidIsoDate(endDate)) return null;
+  if (endDate < startDate) return null;
+
+  const dates: string[] = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    dates.push(cursor);
+    if (dates.length > MAX_CALENDAR_RANGE_DAYS) return null;
+    cursor = addDays(cursor, 1);
+  }
+  return dates;
+}
+
+/**
+ * Masukkan catatan takwim bagi senarai tarikh, memintas pertindihan.
+ * Memulangkan mesej ralat atau `null` jika berjaya.
+ */
+async function insertCalendarRange(
+  admin: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  dates: string[],
+  eventName: string,
+  isHoliday: boolean
+): Promise<string | null> {
+  const rows = dates.map((date) => ({
+    tenant_id: tenantId,
+    date,
+    event_name: eventName,
+    is_holiday: isHoliday,
+  }));
+
+  const { error } = await admin
+    .from('academic_calendar')
+    .upsert(rows, {
+      onConflict: 'tenant_id,date,event_name',
+      ignoreDuplicates: true,
+    });
+
+  return error ? `Gagal menyimpan catatan takwim: ${error.message}` : null;
+}
+
+/** Tambah catatan takwim akademik bagi setiap tarikh dalam julat. */
 export async function createCalendarEntry(
   input: CalendarEntryInput
 ): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
   if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
-  if (!isValidIsoDate(input.date)) {
-    return { success: false, error: 'Tarikh tidak sah.' };
+  const dates = expandDateRange(input.start_date, input.end_date);
+  if (!dates) {
+    return {
+      success: false,
+      error: `Julat tarikh tidak sah. Tarikh tamat mesti selepas tarikh mula dan tidak melebihi ${MAX_CALENDAR_RANGE_DAYS} hari.`,
+    };
   }
 
   const eventName = input.event_name.trim();
@@ -487,24 +649,19 @@ export async function createCalendarEntry(
   }
 
   const admin = createAdminClient();
-  const { error: insertError } = await admin.from('academic_calendar').insert({
-    tenant_id: profile.tenant_id,
-    date: input.date,
-    event_name: eventName,
-    is_holiday: input.is_holiday,
-  });
-
+  const insertError = await insertCalendarRange(
+    admin,
+    profile.tenant_id,
+    dates,
+    eventName,
+    input.is_holiday
+  );
   if (insertError) {
-    return {
-      success: false,
-      error:
-        insertError.code === UNIQUE_VIOLATION
-          ? 'Catatan bagi tarikh dan nama acara ini sudah wujud.'
-          : `Gagal menyimpan catatan takwim: ${insertError.message}`,
-    };
+    return { success: false, error: insertError };
   }
 
   revalidatePath('/admin/tetapan');
+  revalidatePath('/dashboard');
   return { success: true };
 }
 
@@ -516,8 +673,12 @@ export async function updateCalendarEntry(
   const { profile, error } = await requireAdmin();
   if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
-  if (!isValidIsoDate(input.date)) {
-    return { success: false, error: 'Tarikh tidak sah.' };
+  const dates = expandDateRange(input.start_date, input.end_date);
+  if (!dates) {
+    return {
+      success: false,
+      error: `Julat tarikh tidak sah. Tarikh tamat mesti selepas tarikh mula dan tidak melebihi ${MAX_CALENDAR_RANGE_DAYS} hari.`,
+    };
   }
 
   const eventName = input.event_name.trim();
@@ -529,7 +690,7 @@ export async function updateCalendarEntry(
   const { data, error: updateError } = await admin
     .from('academic_calendar')
     .update({
-      date: input.date,
+      date: dates[0],
       event_name: eventName,
       is_holiday: input.is_holiday,
     })
@@ -551,7 +712,22 @@ export async function updateCalendarEntry(
     return { success: false, error: 'Catatan takwim tidak dijumpai untuk pusat anda.' };
   }
 
+  // Tarikh tambahan dalam julat baharu ditambah tanpa menimpa catatan sedia ada.
+  if (dates.length > 1) {
+    const insertError = await insertCalendarRange(
+      admin,
+      profile.tenant_id,
+      dates.slice(1),
+      eventName,
+      input.is_holiday
+    );
+    if (insertError) {
+      return { success: false, error: insertError };
+    }
+  }
+
   revalidatePath('/admin/tetapan');
+  revalidatePath('/dashboard');
   return { success: true };
 }
 

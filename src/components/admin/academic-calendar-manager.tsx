@@ -264,13 +264,19 @@ interface CalendarModalProps {
 }
 
 function CalendarModal({ entry, saving, error, onClose, onSubmit }: CalendarModalProps) {
-  const [date, setDate] = useState(entry?.date ?? getTodayIso());
+  const [startDate, setStartDate] = useState(entry?.date ?? getTodayIso());
+  const [endDate, setEndDate] = useState(entry?.date ?? getTodayIso());
   const [eventName, setEventName] = useState(entry?.event_name ?? '');
   const [isHoliday, setIsHoliday] = useState(entry?.is_holiday ?? true);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    onSubmit({ date, event_name: eventName, is_holiday: isHoliday });
+    onSubmit({
+      start_date: startDate,
+      end_date: endDate,
+      event_name: eventName,
+      is_holiday: isHoliday,
+    });
   }
 
   return (
@@ -297,18 +303,38 @@ function CalendarModal({ entry, saving, error, onClose, onSubmit }: CalendarModa
         )}
 
         <div className="mt-4 space-y-4">
-          <div>
-            <label htmlFor="calendar_date" className="label">
-              Tarikh
-            </label>
-            <input
-              id="calendar_date"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              required
-              className="input"
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="calendar_start_date" className="label">
+                Tarikh Mula
+              </label>
+              <input
+                id="calendar_start_date"
+                type="date"
+                value={startDate}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStartDate(value);
+                  if (endDate < value) setEndDate(value);
+                }}
+                required
+                className="input"
+              />
+            </div>
+            <div>
+              <label htmlFor="calendar_end_date" className="label">
+                Tarikh Tamat
+              </label>
+              <input
+                id="calendar_end_date"
+                type="date"
+                value={endDate}
+                min={startDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                required
+                className="input"
+              />
+            </div>
           </div>
 
           <div>

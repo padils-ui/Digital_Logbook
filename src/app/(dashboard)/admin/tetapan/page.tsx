@@ -6,7 +6,8 @@ import { CenterSettingsForm } from '@/components/admin/center-settings-form';
 import { LetterheadUploader } from '@/components/admin/letterhead-uploader';
 import { LogoUploader } from '@/components/admin/logo-uploader';
 import { AcademicCalendarManager } from '@/components/admin/academic-calendar-manager';
-import type { AcademicCalendarRow, CenterSettings } from '@/lib/types';
+import { AnnouncementManager } from '@/components/admin/announcement-manager';
+import type { AcademicCalendarRow, Announcement, CenterSettings } from '@/lib/types';
 
 export const metadata: Metadata = { title: 'Tetapan PAPN' };
 
@@ -21,7 +22,7 @@ export default async function AdminTetapanPage() {
 
   // Klien admin memintas RLS — setiap pertanyaan tetap ditapis tenant_id.
   const admin = createAdminClient();
-  const [settingsRes, calendarRes] = await Promise.all([
+  const [settingsRes, calendarRes, announcementsRes] = await Promise.all([
     admin
       .from('center_settings')
       .select(
@@ -34,11 +35,17 @@ export default async function AdminTetapanPage() {
       .select('id, tenant_id, date, event_name, is_holiday, created_at')
       .eq('tenant_id', tenantId)
       .order('date'),
+    admin
+      .from('announcements')
+      .select('id, tenant_id, title, content, target_class_id, created_by, created_at, is_pinned')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false }),
   ]);
 
   const settings = (settingsRes.data ?? null) as CenterSettings | null;
   const calendarEntries = (calendarRes.data ?? []) as AcademicCalendarRow[];
-  const loadError = settingsRes.error ?? calendarRes.error;
+  const announcements = (announcementsRes.data ?? []) as Announcement[];
+  const loadError = settingsRes.error ?? calendarRes.error ?? announcementsRes.error;
 
   return (
     <div className="space-y-6">
@@ -75,6 +82,8 @@ export default async function AdminTetapanPage() {
       </div>
 
       <AcademicCalendarManager entries={calendarEntries} />
+
+      <AnnouncementManager announcements={announcements} />
     </div>
   );
 }
