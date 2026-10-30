@@ -1,7 +1,7 @@
 {
-  "name": "Digital Logbook PAPN",
-  "short_name": "Logbook PAPN",
-  "description": "Sistem Logbook Digital Pusat Anak PERMATA Negara (PAPN)",
+  "name": "PERMATALog",
+  "short_name": "PERMATALog",
+  "description": "PERMATALog - Sistem Pengurusan & Pentaksiran PAPN",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

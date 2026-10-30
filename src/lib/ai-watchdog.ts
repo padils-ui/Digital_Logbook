@@ -201,7 +201,7 @@ export async function notifyWatchdog(
     const summary = await summarizeError(error, context);
 
     const message = [
-      '*Digital Logbook — Ralat Sistem*',
+      '*PERMATALog — Ralat Sistem*',
       '',
       `*Root Cause:* ${escapeMarkdown(summary.rootCause)}`,
       `*Action Required:* ${escapeMarkdown(summary.actionRequired)}`,

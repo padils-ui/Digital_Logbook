@@ -203,7 +203,7 @@ export function AppShell({
             </Link>
           ) : (
             <span className="text-sm font-bold text-slate-900 sm:text-base">
-              Digital Logbook PAPN
+              PERMATALog
             </span>
           )}
         </div>

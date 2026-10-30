@@ -14,11 +14,9 @@ export default function LoginPage({
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-slate-100 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">
-            Digital Logbook PAPN
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">PERMATALog</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Sistem Logbook Digital Pusat Anak PERMATA Negara
+            Sistem Pengurusan &amp; Pentaksiran PAPN
           </p>
         </div>
         <LoginForm redirectTo={searchParams.redirectTo ?? ''} />

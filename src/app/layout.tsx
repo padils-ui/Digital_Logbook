@@ -3,16 +3,15 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Digital Logbook PAPN',
-    template: '%s | Digital Logbook PAPN',
+    default: 'PERMATALog',
+    template: '%s | PERMATALog',
   },
-  description:
-    'Sistem Logbook Digital untuk Pusat Anak PERMATA Negara (PAPN) — rekod harian, laporan insiden dan pengumuman.',
+  description: 'PERMATALog - Sistem Pengurusan & Pentaksiran PAPN.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Logbook PAPN',
+    title: 'PERMATALog',
   },
   icons: {
     icon: '/icons/icon-192.png',

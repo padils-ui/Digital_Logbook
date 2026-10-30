@@ -65,17 +65,11 @@ export default async function AdminTetapanPage() {
 
         <div className="space-y-6">
           <section className="card p-5">
-            <LogoUploader
-              logoUrl={settings?.logo_url ?? null}
-              disabled={settings === null}
-            />
+            <LogoUploader logoUrl={settings?.logo_url ?? null} />
           </section>
 
           <section className="card p-5">
-            <LetterheadUploader
-              letterheadUrl={settings?.letterhead_url ?? null}
-              disabled={settings === null}
-            />
+            <LetterheadUploader letterheadUrl={settings?.letterhead_url ?? null} />
           </section>
         </div>
       </div>

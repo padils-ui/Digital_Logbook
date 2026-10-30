@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/auth';
+import type { CenterSettings } from '@/lib/types';
 
 /** Baldi storan aset pusat (kepala surat & logo). */
 const BUCKET = 'center-assets';
@@ -33,28 +34,26 @@ export interface CalendarEntryInput {
   is_holiday: boolean;
 }
 
-export interface SettingsActionResult {
-  ok: boolean;
+/**
+ * Bentuk hasil piawai bagi semua tindakan pelayan Tetapan PAPN.
+ * `success: true` membawa `data`; `success: false` membawa `error`.
+ */
+export interface SettingsActionResult<TData = null> {
+  success: boolean;
+  data?: TData;
   error?: string;
 }
 
-export interface LetterheadUploadResult extends SettingsActionResult {
+/** Muatan hasil muat naik imej ke baldi `center-assets`. */
+export interface UploadedImage {
   /** URL awam imej yang baru dimuat naik. */
-  url?: string;
+  url: string;
 }
 
-export interface LogoUploadResult extends SettingsActionResult {
-  /** URL awam logo yang baru dimuat naik. */
-  url?: string;
-}
-
-interface ExistingSettings {
+/** Rujukan ringkas kepada baris `center_settings` tenant semasa. */
+interface SettingsRowRef {
   id: string;
   letterhead_url: string | null;
-}
-
-interface ExistingLogo {
-  id: string;
   logo_url: string | null;
 }
 
@@ -92,43 +91,132 @@ function storagePathFromUrl(url: string | null): string | null {
   return decodeURIComponent(url.slice(index + marker.length));
 }
 
+/**
+ * Pastikan baris `center_settings` wujud bagi tenant semasa.
+ * Jika belum ada, baris lalai dicipta secara automatik supaya muat naik
+ * imej tidak tersekat oleh pengawal UI. `center_name` ialah lajur NOT NULL,
+ * jadi nama pusat diambil daripada jadual `tenants`.
+ */
+async function ensureSettingsRow(
+  admin: ReturnType<typeof createAdminClient>,
+  tenantId: string
+): Promise<{ row: SettingsRowRef | null; error: string | null }> {
+  const { data: existing, error: readError } = await admin
+    .from('center_settings')
+    .select('id, letterhead_url, logo_url')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (readError) {
+    return { row: null, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+  }
+  if (existing) {
+    return { row: existing as SettingsRowRef, error: null };
+  }
+
+  const { data: tenant } = await admin
+    .from('tenants')
+    .select('name, app_name')
+    .eq('id', tenantId)
+    .maybeSingle();
+
+  const tenantRow = tenant as { name?: string | null; app_name?: string | null } | null;
+  const defaultName =
+    emptyToNull(tenantRow?.app_name) ??
+    emptyToNull(tenantRow?.name) ??
+    'Pusat Anak PERMATA Negara';
+
+  // `ignoreDuplicates` mengelakkan penulisan semula nama pusat jika baris
+  // dicipta serentak oleh permintaan lain.
+  const { error: provisionError } = await admin
+    .from('center_settings')
+    .upsert(
+      { tenant_id: tenantId, center_name: defaultName },
+      { onConflict: 'tenant_id', ignoreDuplicates: true }
+    );
+
+  if (provisionError) {
+    return { row: null, error: `Gagal mencipta tetapan pusat: ${provisionError.message}` };
+  }
+
+  const { data: created, error: createdError } = await admin
+    .from('center_settings')
+    .select('id, letterhead_url, logo_url')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (createdError) {
+    return { row: null, error: `Gagal membaca tetapan pusat: ${createdError.message}` };
+  }
+  if (!created) {
+    return { row: null, error: 'Gagal mencipta tetapan pusat untuk tenant anda.' };
+  }
+  return { row: created as SettingsRowRef, error: null };
+}
+
 /** Simpan (atau kemas kini) metadata rasmi pusat bagi tenant semasa. */
 export async function saveCenterSettings(
   input: CenterSettingsInput
-): Promise<SettingsActionResult> {
+): Promise<SettingsActionResult<CenterSettings>> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const centerName = input.center_name.trim();
   if (!centerName) {
-    return { ok: false, error: 'Nama pusat wajib diisi.' };
+    return { success: false, error: 'Nama pusat wajib diisi.' };
   }
 
   const email = emptyToNull(input.email);
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: 'Format e-mel tidak sah.' };
+    return { success: false, error: 'Format e-mel tidak sah.' };
   }
 
   const admin = createAdminClient();
-  const { error: upsertError } = await admin.from('center_settings').upsert(
-    {
-      tenant_id: profile.tenant_id,
-      center_name: centerName,
-      code: emptyToNull(input.code),
-      address: emptyToNull(input.address),
-      phone: emptyToNull(input.phone),
-      email,
-      academic_year: emptyToNull(input.academic_year),
-    },
-    { onConflict: 'tenant_id' }
-  );
 
-  if (upsertError) {
-    return { ok: false, error: `Gagal menyimpan tetapan pusat: ${upsertError.message}` };
+  try {
+    // `tenant_id` ialah kunci konflik: satu baris tetapan bagi setiap tenant.
+    const { data, error: upsertError } = await admin
+      .from('center_settings')
+      .upsert(
+        {
+          tenant_id: profile.tenant_id,
+          center_name: centerName,
+          code: emptyToNull(input.code),
+          address: emptyToNull(input.address),
+          phone: emptyToNull(input.phone),
+          email,
+          academic_year: emptyToNull(input.academic_year),
+        },
+        { onConflict: 'tenant_id' }
+      )
+      .select(
+        'id, tenant_id, center_name, code, address, phone, email, academic_year, letterhead_url, logo_url, updated_at'
+      )
+      .single();
+
+    if (upsertError) {
+      return {
+        success: false,
+        error: `Gagal menyimpan tetapan pusat: ${upsertError.message}`,
+      };
+    }
+    if (!data) {
+      return {
+        success: false,
+        error: 'Gagal menyimpan tetapan pusat: tiada data dikembalikan.',
+      };
+    }
+
+    revalidatePath('/admin/tetapan');
+    return { success: true, data: data as CenterSettings };
+  } catch (unexpected) {
+    return {
+      success: false,
+      error: `Gagal menyimpan tetapan pusat: ${
+        unexpected instanceof Error ? unexpected.message : 'ralat tidak diketahui'
+      }`,
+    };
   }
-
-  revalidatePath('/admin/tetapan');
-  return { ok: true };
 }
 
 /**
@@ -138,41 +226,36 @@ export async function saveCenterSettings(
  */
 export async function uploadLetterhead(
   formData: FormData
-): Promise<LetterheadUploadResult> {
+): Promise<SettingsActionResult<UploadedImage>> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: 'Sila pilih fail imej kepala surat.' };
+    return { success: false, error: 'Sila pilih fail imej kepala surat.' };
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    return { ok: false, error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.' };
+    return {
+      success: false,
+      error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.',
+    };
   }
 
   const extension = ALLOWED_IMAGE_MIME[file.type];
   if (!extension) {
-    return { ok: false, error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.' };
+    return {
+      success: false,
+      error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.',
+    };
   }
 
   const admin = createAdminClient();
-  const { data: existingData, error: readError } = await admin
-    .from('center_settings')
-    .select('id, letterhead_url')
-    .eq('tenant_id', profile.tenant_id)
-    .maybeSingle();
-
-  if (readError) {
-    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+  // Cipta baris tetapan lalai jika belum wujud — muat naik tidak disekat.
+  const ensured = await ensureSettingsRow(admin, profile.tenant_id);
+  if (!ensured.row) {
+    return { success: false, error: ensured.error ?? 'Gagal menyediakan tetapan pusat.' };
   }
-
-  const existing = (existingData as ExistingSettings | null);
-  if (!existing) {
-    return {
-      ok: false,
-      error: 'Sila simpan maklumat pusat terlebih dahulu sebelum memuat naik kepala surat.',
-    };
-  }
+  const existing = ensured.row;
 
   const path = `${profile.tenant_id}/letterhead-${Date.now()}.${extension}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -184,7 +267,10 @@ export async function uploadLetterhead(
   });
 
   if (uploadError) {
-    return { ok: false, error: `Gagal memuat naik kepala surat: ${uploadError.message}` };
+    return {
+      success: false,
+      error: `Gagal memuat naik kepala surat: ${uploadError.message}`,
+    };
   }
 
   const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);
@@ -199,7 +285,7 @@ export async function uploadLetterhead(
     // Jangan tinggalkan fail yatim jika pautan gagal disimpan.
     await admin.storage.from(BUCKET).remove([path]);
     return {
-      ok: false,
+      success: false,
       error: `Gagal menyimpan pautan kepala surat: ${updateError.message}`,
     };
   }
@@ -211,13 +297,13 @@ export async function uploadLetterhead(
   }
 
   revalidatePath('/admin/tetapan');
-  return { ok: true, url: publicUrl };
+  return { success: true, data: { url: publicUrl } };
 }
 
 /** Buang imej kepala surat daripada baldi dan kosongkan pautannya. */
 export async function removeLetterhead(): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const admin = createAdminClient();
   const { data: existingData, error: readError } = await admin
@@ -227,19 +313,22 @@ export async function removeLetterhead(): Promise<SettingsActionResult> {
     .maybeSingle();
 
   if (readError) {
-    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+    return { success: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
   }
 
-  const existing = (existingData as ExistingSettings | null);
+  const existing = existingData as SettingsRowRef | null;
   if (!existing) {
-    return { ok: true };
+    return { success: true };
   }
 
   const path = storagePathFromUrl(existing.letterhead_url);
   if (path) {
     const { error: removeError } = await admin.storage.from(BUCKET).remove([path]);
     if (removeError) {
-      return { ok: false, error: `Gagal membuang imej kepala surat: ${removeError.message}` };
+      return {
+        success: false,
+        error: `Gagal membuang imej kepala surat: ${removeError.message}`,
+      };
     }
   }
 
@@ -249,11 +338,11 @@ export async function removeLetterhead(): Promise<SettingsActionResult> {
     .eq('tenant_id', profile.tenant_id);
 
   if (updateError) {
-    return { ok: false, error: `Gagal mengemas kini tetapan pusat: ${updateError.message}` };
+    return { success: false, error: `Gagal mengemas kini tetapan pusat: ${updateError.message}` };
   }
 
   revalidatePath('/admin/tetapan');
-  return { ok: true };
+  return { success: true };
 }
 
 /**
@@ -262,41 +351,36 @@ export async function removeLetterhead(): Promise<SettingsActionResult> {
  */
 export async function uploadLogo(
   formData: FormData
-): Promise<LogoUploadResult> {
+): Promise<SettingsActionResult<UploadedImage>> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: 'Sila pilih fail imej logo pusat.' };
+    return { success: false, error: 'Sila pilih fail imej logo pusat.' };
   }
   if (file.size > MAX_IMAGE_BYTES) {
-    return { ok: false, error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.' };
+    return {
+      success: false,
+      error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.',
+    };
   }
 
   const extension = ALLOWED_IMAGE_MIME[file.type];
   if (!extension) {
-    return { ok: false, error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.' };
+    return {
+      success: false,
+      error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.',
+    };
   }
 
   const admin = createAdminClient();
-  const { data: existingData, error: readError } = await admin
-    .from('center_settings')
-    .select('id, logo_url')
-    .eq('tenant_id', profile.tenant_id)
-    .maybeSingle();
-
-  if (readError) {
-    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+  // Cipta baris tetapan lalai jika belum wujud — muat naik tidak disekat.
+  const ensured = await ensureSettingsRow(admin, profile.tenant_id);
+  if (!ensured.row) {
+    return { success: false, error: ensured.error ?? 'Gagal menyediakan tetapan pusat.' };
   }
-
-  const existing = existingData as ExistingLogo | null;
-  if (!existing) {
-    return {
-      ok: false,
-      error: 'Sila simpan maklumat pusat terlebih dahulu sebelum memuat naik logo.',
-    };
-  }
+  const existing = ensured.row;
 
   const path = `${profile.tenant_id}/logo-${Date.now()}.${extension}`;
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -308,7 +392,10 @@ export async function uploadLogo(
   });
 
   if (uploadError) {
-    return { ok: false, error: `Gagal memuat naik logo: ${uploadError.message}` };
+    return {
+      success: false,
+      error: `Gagal memuat naik logo: ${uploadError.message}`,
+    };
   }
 
   const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);
@@ -323,7 +410,7 @@ export async function uploadLogo(
     // Jangan tinggalkan fail yatim jika pautan gagal disimpan.
     await admin.storage.from(BUCKET).remove([path]);
     return {
-      ok: false,
+      success: false,
       error: `Gagal menyimpan pautan logo: ${updateError.message}`,
     };
   }
@@ -337,13 +424,13 @@ export async function uploadLogo(
   revalidatePath('/admin/tetapan');
   // Logo digunakan oleh bar sisi/pengepala — segarkan susun atur bersama.
   revalidatePath('/', 'layout');
-  return { ok: true, url: publicUrl };
+  return { success: true, data: { url: publicUrl } };
 }
 
 /** Buang logo pusat daripada baldi dan kosongkan pautannya. */
 export async function removeLogo(): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const admin = createAdminClient();
   const { data: existingData, error: readError } = await admin
@@ -353,19 +440,19 @@ export async function removeLogo(): Promise<SettingsActionResult> {
     .maybeSingle();
 
   if (readError) {
-    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+    return { success: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
   }
 
-  const existing = existingData as ExistingLogo | null;
+  const existing = existingData as SettingsRowRef | null;
   if (!existing) {
-    return { ok: true };
+    return { success: true };
   }
 
   const path = storagePathFromUrl(existing.logo_url);
   if (path) {
     const { error: removeError } = await admin.storage.from(BUCKET).remove([path]);
     if (removeError) {
-      return { ok: false, error: `Gagal membuang logo: ${removeError.message}` };
+      return { success: false, error: `Gagal membuang logo: ${removeError.message}` };
     }
   }
 
@@ -375,12 +462,12 @@ export async function removeLogo(): Promise<SettingsActionResult> {
     .eq('tenant_id', profile.tenant_id);
 
   if (updateError) {
-    return { ok: false, error: `Gagal mengemas kini tetapan pusat: ${updateError.message}` };
+    return { success: false, error: `Gagal mengemas kini tetapan pusat: ${updateError.message}` };
   }
 
   revalidatePath('/admin/tetapan');
   revalidatePath('/', 'layout');
-  return { ok: true };
+  return { success: true };
 }
 
 /** Tambah satu catatan takwim akademik bagi tenant semasa. */
@@ -388,15 +475,15 @@ export async function createCalendarEntry(
   input: CalendarEntryInput
 ): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   if (!isValidIsoDate(input.date)) {
-    return { ok: false, error: 'Tarikh tidak sah.' };
+    return { success: false, error: 'Tarikh tidak sah.' };
   }
 
   const eventName = input.event_name.trim();
   if (!eventName) {
-    return { ok: false, error: 'Nama acara wajib diisi.' };
+    return { success: false, error: 'Nama acara wajib diisi.' };
   }
 
   const admin = createAdminClient();
@@ -409,7 +496,7 @@ export async function createCalendarEntry(
 
   if (insertError) {
     return {
-      ok: false,
+      success: false,
       error:
         insertError.code === UNIQUE_VIOLATION
           ? 'Catatan bagi tarikh dan nama acara ini sudah wujud.'
@@ -418,7 +505,7 @@ export async function createCalendarEntry(
   }
 
   revalidatePath('/admin/tetapan');
-  return { ok: true };
+  return { success: true };
 }
 
 /** Kemas kini catatan takwim akademik milik tenant semasa. */
@@ -427,15 +514,15 @@ export async function updateCalendarEntry(
   input: CalendarEntryInput
 ): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   if (!isValidIsoDate(input.date)) {
-    return { ok: false, error: 'Tarikh tidak sah.' };
+    return { success: false, error: 'Tarikh tidak sah.' };
   }
 
   const eventName = input.event_name.trim();
   if (!eventName) {
-    return { ok: false, error: 'Nama acara wajib diisi.' };
+    return { success: false, error: 'Nama acara wajib diisi.' };
   }
 
   const admin = createAdminClient();
@@ -452,7 +539,7 @@ export async function updateCalendarEntry(
 
   if (updateError) {
     return {
-      ok: false,
+      success: false,
       error:
         updateError.code === UNIQUE_VIOLATION
           ? 'Catatan bagi tarikh dan nama acara ini sudah wujud.'
@@ -461,17 +548,17 @@ export async function updateCalendarEntry(
   }
 
   if (!data || data.length === 0) {
-    return { ok: false, error: 'Catatan takwim tidak dijumpai untuk pusat anda.' };
+    return { success: false, error: 'Catatan takwim tidak dijumpai untuk pusat anda.' };
   }
 
   revalidatePath('/admin/tetapan');
-  return { ok: true };
+  return { success: true };
 }
 
 /** Hapus catatan takwim akademik milik tenant semasa. */
 export async function deleteCalendarEntry(id: string): Promise<SettingsActionResult> {
   const { profile, error } = await requireAdmin();
-  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+  if (!profile) return { success: false, error: error ?? 'Anda tiada kebenaran.' };
 
   const admin = createAdminClient();
   const { data, error: deleteError } = await admin
@@ -482,13 +569,13 @@ export async function deleteCalendarEntry(id: string): Promise<SettingsActionRes
     .select('id');
 
   if (deleteError) {
-    return { ok: false, error: `Gagal memadam catatan takwim: ${deleteError.message}` };
+    return { success: false, error: `Gagal memadam catatan takwim: ${deleteError.message}` };
   }
 
   if (!data || data.length === 0) {
-    return { ok: false, error: 'Catatan takwim tidak dijumpai untuk pusat anda.' };
+    return { success: false, error: 'Catatan takwim tidak dijumpai untuk pusat anda.' };
   }
 
   revalidatePath('/admin/tetapan');
-  return { ok: true };
+  return { success: true };
 }

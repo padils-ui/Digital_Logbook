@@ -49,16 +49,19 @@ export function AcademicCalendarManager({ entries }: AcademicCalendarManagerProp
     setSaving(true);
     setFormError(null);
     startTransition(async () => {
-      const result = editing
-        ? await updateCalendarEntry(editing.id, input)
-        : await createCalendarEntry(input);
-      setSaving(false);
-      if (!result.ok) {
-        setFormError(result.error ?? 'Ralat tidak diketahui.');
-        return;
+      try {
+        const result = editing
+          ? await updateCalendarEntry(editing.id, input)
+          : await createCalendarEntry(input);
+        if (!result.success) {
+          setFormError(result.error ?? 'Ralat tidak diketahui.');
+          return;
+        }
+        setModalOpen(false);
+        setEditing(null);
+      } finally {
+        setSaving(false);
       }
-      setModalOpen(false);
-      setEditing(null);
     });
   }
 
@@ -67,14 +70,16 @@ export function AcademicCalendarManager({ entries }: AcademicCalendarManagerProp
     setDeleting(true);
     setActionError(null);
     startTransition(async () => {
-      const result = await deleteCalendarEntry(deleteTarget.id);
-      setDeleting(false);
-      if (!result.ok) {
-        setActionError(result.error ?? 'Ralat tidak diketahui.');
+      try {
+        const result = await deleteCalendarEntry(deleteTarget.id);
+        if (!result.success) {
+          setActionError(result.error ?? 'Ralat tidak diketahui.');
+          return;
+        }
+      } finally {
         setDeleteTarget(null);
-        return;
+        setDeleting(false);
       }
-      setDeleteTarget(null);
     });
   }
 

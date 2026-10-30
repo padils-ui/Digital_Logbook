@@ -552,7 +552,7 @@ function drawParentReview(helper: PageHelper, data: DailyLogPdfData): void {
 
 /** Footer dokumen. */
 function drawFooter(helper: PageHelper): void {
-  helper.text('Dokumen ini dijana secara automatik oleh Digital Logbook PAPN.', {
+  helper.text('Dokumen ini dijana secara automatik oleh PERMATALog.', {
     x: MARGIN_X,
     y: MARGIN_BOTTOM - 6,
     size: FONT_SMALL,

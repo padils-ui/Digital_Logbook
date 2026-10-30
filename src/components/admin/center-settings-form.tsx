@@ -31,20 +31,23 @@ export function CenterSettingsForm({ settings }: CenterSettingsFormProps) {
     setMessage(null);
 
     startTransition(async () => {
-      const result = await saveCenterSettings({
-        center_name: centerName,
-        code,
-        address,
-        phone,
-        email,
-        academic_year: academicYear,
-      });
-      setSaving(false);
-      if (!result.ok) {
-        setError(result.error ?? 'Ralat tidak diketahui.');
-        return;
+      try {
+        const result = await saveCenterSettings({
+          center_name: centerName,
+          code,
+          address,
+          phone,
+          email,
+          academic_year: academicYear,
+        });
+        if (!result.success) {
+          setError(result.error ?? 'Ralat tidak diketahui.');
+          return;
+        }
+        setMessage('Maklumat pusat berjaya disimpan.');
+      } finally {
+        setSaving(false);
       }
-      setMessage('Maklumat pusat berjaya disimpan.');
     });
   }
 

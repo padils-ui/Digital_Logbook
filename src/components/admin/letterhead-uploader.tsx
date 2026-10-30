@@ -11,12 +11,14 @@ const MAX_BYTES = 2 * 1024 * 1024;
 interface LetterheadUploaderProps {
   /** URL awam imej semasa, jika ada. */
   letterheadUrl: string | null;
-  /** Benar apabila baris `center_settings` belum wujud. */
-  disabled: boolean;
 }
 
-/** Pemuat naik imej kepala surat rasmi pusat. */
-export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUploaderProps) {
+/**
+ * Pemuat naik imej kepala surat rasmi pusat.
+ * Baris `center_settings` dicipta secara automatik oleh tindakan pelayan
+ * sekiranya belum wujud, jadi butang muat naik sentiasa tersedia.
+ */
+export function LetterheadUploader({ letterheadUrl }: LetterheadUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(letterheadUrl);
   const [uploading, setUploading] = useState(false);
@@ -45,15 +47,18 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
 
     setUploading(true);
     startTransition(async () => {
-      const result = await uploadLetterhead(formData);
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
-      if (!result.ok) {
-        setError(result.error ?? 'Ralat tidak diketahui.');
-        return;
+      try {
+        const result = await uploadLetterhead(formData);
+        if (!result.success) {
+          setError(result.error ?? 'Ralat tidak diketahui.');
+          return;
+        }
+        setPreviewUrl(result.data?.url ?? null);
+        setMessage('Imej kepala surat berjaya dimuat naik.');
+      } finally {
+        setUploading(false);
+        if (inputRef.current) inputRef.current.value = '';
       }
-      setPreviewUrl(result.url ?? null);
-      setMessage('Imej kepala surat berjaya dimuat naik.');
     });
   }
 
@@ -62,15 +67,18 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
     setError(null);
     setMessage(null);
     startTransition(async () => {
-      const result = await removeLetterhead();
-      setRemoving(false);
-      setConfirmRemove(false);
-      if (!result.ok) {
-        setError(result.error ?? 'Ralat tidak diketahui.');
-        return;
+      try {
+        const result = await removeLetterhead();
+        if (!result.success) {
+          setError(result.error ?? 'Ralat tidak diketahui.');
+          return;
+        }
+        setPreviewUrl(null);
+        setMessage('Imej kepala surat telah dibuang.');
+      } finally {
+        setRemoving(false);
+        setConfirmRemove(false);
       }
-      setPreviewUrl(null);
-      setMessage('Imej kepala surat telah dibuang.');
     });
   }
 
@@ -102,12 +110,6 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
         </p>
       )}
 
-      {disabled && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Sila simpan maklumat pusat terlebih dahulu sebelum memuat naik kepala surat.
-        </p>
-      )}
-
       <div className="relative flex h-32 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
         {previewUrl ? (
           <Image
@@ -126,9 +128,9 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
         ref={inputRef}
         id="letterhead_file"
         type="file"
-        accept="image/png,image/jpeg,image/webp"
+        accept="image/*"
         onChange={handleFileChange}
-        disabled={disabled || uploading || removing}
+        disabled={uploading || removing}
         className="sr-only"
         aria-label="Pilih imej kepala surat"
       />
@@ -137,8 +139,8 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="btn"
-          disabled={disabled || uploading || removing}
+          className="btn min-h-touch"
+          disabled={uploading || removing}
         >
           <ImageUp className="h-4 w-4" aria-hidden />
           {uploading ? 'Memuat naik…' : 'Muat Naik Imej'}
@@ -148,7 +150,7 @@ export function LetterheadUploader({ letterheadUrl, disabled }: LetterheadUpload
           <button
             type="button"
             onClick={() => setConfirmRemove(true)}
-            className="btn bg-red-50 text-red-700 hover:bg-red-100"
+            className="btn min-h-touch bg-red-50 text-red-700 hover:bg-red-100"
             disabled={uploading || removing}
           >
             <Trash2 className="h-4 w-4" aria-hidden />
