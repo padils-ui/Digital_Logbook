@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
@@ -88,11 +89,14 @@ export function AppShell({
   role,
   fullName,
   tenantName,
+  logoUrl,
   children,
 }: {
   role: UserRole;
   fullName: string;
   tenantName: string;
+  /** URL awam logo pusat; null bermakna guna penjenamaan lalai. */
+  logoUrl: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -144,6 +148,26 @@ export function AppShell({
     </nav>
   );
 
+  /** Pengepala kecil nama pusat di bar sisi (dengan logo jika ada). */
+  const tenantHeading = (
+    <div className="mb-3 flex items-center gap-2 px-3">
+      {logoUrl ? (
+        <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-md bg-white">
+          <Image
+            src={logoUrl}
+            alt={`Logo ${tenantName}`}
+            fill
+            sizes="24px"
+            className="object-contain"
+          />
+        </span>
+      ) : null}
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {tenantName}
+      </p>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Bar atas */}
@@ -162,9 +186,26 @@ export function AppShell({
               <Menu className="h-5 w-5" aria-hidden />
             )}
           </button>
-          <span className="text-sm font-bold text-slate-900 sm:text-base">
-            Digital Logbook PAPN
-          </span>
+          {logoUrl ? (
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white">
+                <Image
+                  src={logoUrl}
+                  alt={`Logo ${tenantName}`}
+                  fill
+                  sizes="32px"
+                  className="object-contain"
+                />
+              </span>
+              <span className="text-sm font-bold text-slate-900 sm:text-base">
+                {tenantName}
+              </span>
+            </Link>
+          ) : (
+            <span className="text-sm font-bold text-slate-900 sm:text-base">
+              Digital Logbook PAPN
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden text-right sm:block">
@@ -189,9 +230,7 @@ export function AppShell({
       <div className="mx-auto flex w-full max-w-7xl">
         {/* Sidebar desktop */}
         <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 border-r border-slate-200 bg-white p-4 lg:block">
-          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            {tenantName}
-          </p>
+          {tenantHeading}
           {nav}
         </aside>
 
@@ -204,9 +243,7 @@ export function AppShell({
               aria-hidden
             />
             <aside className="absolute left-0 top-14 h-[calc(100vh-3.5rem)] w-64 border-r border-slate-200 bg-white p-4">
-              <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {tenantName}
-              </p>
+              {tenantHeading}
               {nav}
             </aside>
           </div>

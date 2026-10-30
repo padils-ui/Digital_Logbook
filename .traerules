@@ -1,0 +1,75 @@
+# Digital Logbook PAPN — Project Rules
+
+Next.js 14 App Router · TypeScript (strict) · Supabase · Tailwind CSS.
+Aplikasi log harian Pusat Anak PERMATA Negara. UI dan komen dalam Bahasa Melayu.
+
+---
+
+## 1. Multi-Tenancy (WAJIB)
+
+- `tenant_id` **hanya** boleh diperoleh di pelayan melalui `getCurrentUser()` (`src/lib/auth.ts`).
+  Ia tidak pernah diterima daripada klien, `searchParams`, `body`, header, atau mana-mana input lain.
+- Semua server action dan route handler mesti bermula dengan semakan sesi:
+  ```ts
+  const profile = await getCurrentUser();
+  if (!profile?.tenant_id) return { ok: false, error: 'Sesi tamat. Sila log masuk semula.' };
+  ```
+- `createAdminClient()` (`src/lib/supabase/admin.ts`) menggunakan service role dan **memintas RLS**.
+  Setiap query mesti menyertakan `.eq('tenant_id', profile.tenant_id)` secara eksplisit —
+  termasuk SELECT, UPDATE dan DELETE.
+- Sebelum menyimpan data berkaitan anak/kelas, sahkan rekod induk itu milik tenant yang sama
+  (contoh: `students` disemak dengan `.eq('tenant_id', …)` sebelum upsert `attendance`).
+- Jangan sekali-kali menerima `tenant_id` dalam jenis input server action
+  (`SaveLogInput`, `AttendanceRecordInput`, dsb.). Jika `tenant_id` perlu, ambil semula daripada sesi.
+- Nilai `tenant_id` yang datang daripada klien hanya boleh digunakan sebagai penapis tambahan
+  selepas query asas sudah diskop mengikut tenant sesi (ia tidak boleh meluaskan capaian).
+- Semakan `role` (`super_admin`, `admin_papn`, `teacher`, `parent`) dibuat di pelayan, bukan sekadar di UI.
+
+## 2. TypeScript Ketat
+
+- Sasaran pengesahan: `npx tsc --noEmit` → **sifar ralat**. Ini mesti dijalankan selepas setiap perubahan.
+- Kekalkan `"strict": true` dan `"noEmit": true` dalam `tsconfig.json`. Jangan longgarkan `strict` untuk
+  menyelesaikan ralat — betulkan jenisnya.
+- Elakkan `any`. Gunakan `unknown` + penyempitan jenis, atau jenis baris dari `src/lib/types.ts`
+  (`Student`, `ClassRow`, …) dan `src/types/*` (`logbook.ts`, `attendance.ts`).
+- Import menggunakan alias `@/*` → `./src/*` (contoh: `@/lib/auth`, `@/components/teacher/...`).
+- Jenis kongsi (dikongsi pelayan + klien) diletakkan dalam modul tulen — bukan dalam fail `'use server'`
+  atau `'use client'`.
+- Server action memulangkan objek hasil bertaip eksplisit (`{ ok, success?, error?, ... }`), bukan melempar
+  ralat mentah ke UI.
+
+## 3. Next.js App Router
+
+- Komponen pelayan secara lalai. Tambah `'use client'` hanya bila perlu (state, event handler, Recharts, dsb.).
+- `'use server'` hanya untuk fail actions; setiap eksport dalam fail itu mestilah fungsi async.
+- Pembacaan data: komponen pelayan / server action. Penulisan data: server action + `revalidatePath()`.
+- Gunakan `searchParams` (URL) untuk keadaan yang boleh dikongsi (tarikh, tab, penapis) — bukan state klien
+  semata-mata. Gunakan `<Link>` untuk navigasi tab supaya butang kembali berfungsi.
+- Sediakan `loading.tsx` (skeleton) dan `error.tsx` pada laluan yang memuatkan data jauh.
+- Jangan dedahkan `SUPABASE_SERVICE_ROLE_KEY`, token Google Drive, atau kunci rahsia ke komponen klien.
+  Hanya `NEXT_PUBLIC_*` boleh sampai ke pelayar.
+
+## 4. UI Defensif
+
+- Setiap panggilan data yang boleh gagal mesti mengendalikan ralat: paparkan mesej Bahasa Melayu yang jelas
+  atau keadaan kosong yang selamat, dan `console.error` untuk debugging pelayan.
+- Sediakan keadaan: memuat, kosong, ralat, dan berjaya untuk setiap paparan data.
+- Semua medan borang perlu label/aria, dan sasaran sentuh minimum 44×44px (`min-h-touch`).
+- Data hilang/tidak sah (tarikh, status, suhu) dinormalkan dengan nilai lalai yang selamat — jangan biarkan
+  UI runtuh kerana `null`/`undefined`.
+
+## 5. Pangkalan Data
+
+- Migrasi ditulis sebagai fail SQL dalam `supabase/migrations/`. Jalankan secara manual dalam
+  Supabase Web SQL Editor — jangan jalankan migrasi langsung melalui MCP/SQL automatik.
+- Setiap jadual mesti ada `tenant_id uuid NOT NULL REFERENCES tenants(id)` dan polisi RLS berasaskan
+  keahlian tenant pengguna.
+- Upsert bergantung pada indeks unik sepadan (contoh: `ux_attendance_tenant_student_date` pada
+  `(tenant_id, student_id, date)`).
+
+## 6. Konvensyen
+
+- Teks UI, mesej ralat, dan komen: Bahasa Melayu baku (elak istilah Indonesia — guna "Muat Naik", bukan
+  "Unggah"; "Guru Besar" untuk sekolah rendah).
+- Format tarikh dalam URL/DB: `YYYY-MM-DD`. Paparan: format tempatan Bahasa Melayu.
+- Jangan tambah `console.log` dalam kod pengeluaran; gunakan `console.error` untuk ralat sahaja.

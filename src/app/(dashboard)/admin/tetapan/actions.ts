@@ -4,12 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentUser } from '@/lib/auth';
 
-/** Baldi storan imej kepala surat. */
+/** Baldi storan aset pusat (kepala surat & logo). */
 const BUCKET = 'center-assets';
-/** Had saiz fail kepala surat (2 MB). */
-const MAX_LETTERHEAD_BYTES = 2 * 1024 * 1024;
+/** Had saiz fail imej (2 MB). */
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 /** Peta MIME yang dibenarkan → sambungan fail. */
-const ALLOWED_LETTERHEAD_MIME: Record<string, string> = {
+const ALLOWED_IMAGE_MIME: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
@@ -43,9 +43,19 @@ export interface LetterheadUploadResult extends SettingsActionResult {
   url?: string;
 }
 
+export interface LogoUploadResult extends SettingsActionResult {
+  /** URL awam logo yang baru dimuat naik. */
+  url?: string;
+}
+
 interface ExistingSettings {
   id: string;
   letterhead_url: string | null;
+}
+
+interface ExistingLogo {
+  id: string;
+  logo_url: string | null;
 }
 
 /** Sahkan pengguna ialah pentadbir (admin_papn / super_admin). */
@@ -136,11 +146,11 @@ export async function uploadLetterhead(
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: 'Sila pilih fail imej kepala surat.' };
   }
-  if (file.size > MAX_LETTERHEAD_BYTES) {
+  if (file.size > MAX_IMAGE_BYTES) {
     return { ok: false, error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.' };
   }
 
-  const extension = ALLOWED_LETTERHEAD_MIME[file.type];
+  const extension = ALLOWED_IMAGE_MIME[file.type];
   if (!extension) {
     return { ok: false, error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.' };
   }
@@ -243,6 +253,133 @@ export async function removeLetterhead(): Promise<SettingsActionResult> {
   }
 
   revalidatePath('/admin/tetapan');
+  return { ok: true };
+}
+
+/**
+ * Muat naik logo pusat / ikon aplikasi ke baldi `center-assets`.
+ * Laluan bermula dengan `tenant_id` supaya dasar storan mengasingkan tenant.
+ */
+export async function uploadLogo(
+  formData: FormData
+): Promise<LogoUploadResult> {
+  const { profile, error } = await requireAdmin();
+  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Sila pilih fail imej logo pusat.' };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return { ok: false, error: 'Saiz imej melebihi 2 MB. Sila kecilkan fail terlebih dahulu.' };
+  }
+
+  const extension = ALLOWED_IMAGE_MIME[file.type];
+  if (!extension) {
+    return { ok: false, error: 'Format imej tidak disokong. Gunakan PNG, JPEG atau WEBP.' };
+  }
+
+  const admin = createAdminClient();
+  const { data: existingData, error: readError } = await admin
+    .from('center_settings')
+    .select('id, logo_url')
+    .eq('tenant_id', profile.tenant_id)
+    .maybeSingle();
+
+  if (readError) {
+    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+  }
+
+  const existing = existingData as ExistingLogo | null;
+  if (!existing) {
+    return {
+      ok: false,
+      error: 'Sila simpan maklumat pusat terlebih dahulu sebelum memuat naik logo.',
+    };
+  }
+
+  const path = `${profile.tenant_id}/logo-${Date.now()}.${extension}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  const { error: uploadError } = await admin.storage.from(BUCKET).upload(path, bytes, {
+    contentType: file.type,
+    cacheControl: '3600',
+    upsert: false,
+  });
+
+  if (uploadError) {
+    return { ok: false, error: `Gagal memuat naik logo: ${uploadError.message}` };
+  }
+
+  const { data: publicUrlData } = admin.storage.from(BUCKET).getPublicUrl(path);
+  const publicUrl = publicUrlData.publicUrl;
+
+  const { error: updateError } = await admin
+    .from('center_settings')
+    .update({ logo_url: publicUrl })
+    .eq('tenant_id', profile.tenant_id);
+
+  if (updateError) {
+    // Jangan tinggalkan fail yatim jika pautan gagal disimpan.
+    await admin.storage.from(BUCKET).remove([path]);
+    return {
+      ok: false,
+      error: `Gagal menyimpan pautan logo: ${updateError.message}`,
+    };
+  }
+
+  // Buang imej lama supaya baldi tidak membesar tanpa kawalan.
+  const previousPath = storagePathFromUrl(existing.logo_url);
+  if (previousPath && previousPath !== path) {
+    await admin.storage.from(BUCKET).remove([previousPath]);
+  }
+
+  revalidatePath('/admin/tetapan');
+  // Logo digunakan oleh bar sisi/pengepala — segarkan susun atur bersama.
+  revalidatePath('/', 'layout');
+  return { ok: true, url: publicUrl };
+}
+
+/** Buang logo pusat daripada baldi dan kosongkan pautannya. */
+export async function removeLogo(): Promise<SettingsActionResult> {
+  const { profile, error } = await requireAdmin();
+  if (!profile) return { ok: false, error: error ?? 'Anda tiada kebenaran.' };
+
+  const admin = createAdminClient();
+  const { data: existingData, error: readError } = await admin
+    .from('center_settings')
+    .select('id, logo_url')
+    .eq('tenant_id', profile.tenant_id)
+    .maybeSingle();
+
+  if (readError) {
+    return { ok: false, error: `Gagal membaca tetapan pusat: ${readError.message}` };
+  }
+
+  const existing = existingData as ExistingLogo | null;
+  if (!existing) {
+    return { ok: true };
+  }
+
+  const path = storagePathFromUrl(existing.logo_url);
+  if (path) {
+    const { error: removeError } = await admin.storage.from(BUCKET).remove([path]);
+    if (removeError) {
+      return { ok: false, error: `Gagal membuang logo: ${removeError.message}` };
+    }
+  }
+
+  const { error: updateError } = await admin
+    .from('center_settings')
+    .update({ logo_url: null })
+    .eq('tenant_id', profile.tenant_id);
+
+  if (updateError) {
+    return { ok: false, error: `Gagal mengemas kini tetapan pusat: ${updateError.message}` };
+  }
+
+  revalidatePath('/admin/tetapan');
+  revalidatePath('/', 'layout');
   return { ok: true };
 }
 

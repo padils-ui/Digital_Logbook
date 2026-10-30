@@ -3,8 +3,18 @@ import Link from 'next/link';
 import { BookOpenText, IdCard, Megaphone, Users } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { formatDateMy, getTodayIso } from '@/lib/week-window';
+import type { AcademicCalendarRow } from '@/lib/types';
+import { AcademicCalendarWidget } from '@/components/dashboard/academic-calendar-widget';
+import { AttendanceTodayWidget } from '@/components/dashboard/attendance-today-widget';
+import { UpcomingEventsCard } from '@/components/dashboard/upcoming-events-card';
 
 export const metadata: Metadata = { title: 'Papan Pemuka' };
+
+interface AttendanceStatusRow {
+  student_id: string;
+  status: string;
+}
 
 export default async function DashboardPage() {
   const profile = await getCurrentUser();
@@ -14,9 +24,9 @@ export default async function DashboardPage() {
   // pada jadual `users`. Setiap pertanyaan ditapis mengikut tenant_id.
   const admin = createAdminClient();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayIso();
 
-  const [students, classes, logs, announcements] = await Promise.all([
+  const [students, classes, logs, announcements, calendar, attendance] = await Promise.all([
     admin
       .from('students')
       .select('id', { count: 'exact', head: true })
@@ -34,12 +44,31 @@ export default async function DashboardPage() {
       .from('announcements')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId),
+    admin
+      .from('academic_calendar')
+      .select('id, tenant_id, date, event_name, is_holiday, created_at')
+      .eq('tenant_id', tenantId)
+      .order('date', { ascending: true }),
+    admin
+      .from('attendance')
+      .select('student_id, status')
+      .eq('tenant_id', tenantId)
+      .eq('date', today),
   ]);
+
+  const calendarEntries = (calendar.data ?? []) as AcademicCalendarRow[];
+  const upcomingEntries = calendarEntries.filter((entry) => entry.date >= today);
+
+  const attendanceRows = (attendance.data ?? []) as AttendanceStatusRow[];
+  const totalStudents = students.count ?? 0;
+  const hadir = attendanceRows.filter((row) => row.status === 'Hadir').length;
+  const lewat = attendanceRows.filter((row) => row.status === 'Lewat').length;
+  const tidakHadir = attendanceRows.filter((row) => row.status === 'Tidak Hadir').length;
 
   const stats = [
     {
       label: 'Jumlah Anak',
-      value: students.count ?? 0,
+      value: totalStudents,
       icon: Users,
       tone: 'bg-brand-50 text-brand-700',
       href: '/admin/students',
@@ -49,7 +78,7 @@ export default async function DashboardPage() {
       value: classes.count ?? 0,
       icon: BookOpenText,
       tone: 'bg-emerald-50 text-emerald-700',
-      href: '/admin/students',
+      href: '/admin/classes',
     },
     {
       label: 'Log Harian',
@@ -103,15 +132,21 @@ export default async function DashboardPage() {
         })}
       </section>
 
-      <section className="card">
-        <h2 className="text-sm font-semibold text-slate-800">
-          Pengurusan Pusat
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Modul pengurusan kelas, pendaftaran anak dan pengurusan pengguna akan
-          ditambah pada fasa seterusnya.
-        </p>
-      </section>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <AcademicCalendarWidget entries={calendarEntries} today={today} />
+        </div>
+        <div className="space-y-6">
+          <AttendanceTodayWidget
+            present={hadir}
+            late={lewat}
+            absent={tidakHadir}
+            totalStudents={totalStudents}
+            dateLabel={formatDateMy(today)}
+          />
+          <UpcomingEventsCard entries={upcomingEntries} />
+        </div>
+      </div>
     </div>
   );
 }

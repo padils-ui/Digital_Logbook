@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { GraduationCap, Pencil, Plus, Trash2, Users } from 'lucide-react';
-import type { ClassRow } from '@/lib/types';
+import { GraduationCap, Pencil, Plus, Trash2, UserRound, Users } from 'lucide-react';
+import type { ClassRow, TeacherOption } from '@/lib/types';
 import {
   createClass,
   updateClass,
@@ -14,10 +14,19 @@ interface ClassManagerProps {
   classes: ClassRow[];
   /** Bilangan anak bagi setiap kelas: { [classId]: count }. */
   studentCounts: Record<string, number>;
+  /** Senarai pendidik yang boleh ditugaskan. */
+  teachers: TeacherOption[];
+  /** Tugasan pendidik sedia ada: { [classId]: teacherId[] }. */
+  teacherIdsByClass: Record<string, string[]>;
 }
 
 /** Pengurusan kelas (CRUD) untuk pentadbir PAPN. */
-export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
+export function ClassManager({
+  classes,
+  studentCounts,
+  teachers,
+  teacherIdsByClass,
+}: ClassManagerProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ClassRow | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -28,6 +37,12 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
+
+  /** Peta id pendidik kepada nama penuh. */
+  const teacherNameById: Record<string, string> = {};
+  teachers.forEach((t) => {
+    teacherNameById[t.id] = t.full_name;
+  });
 
   function openAdd() {
     setEditing(null);
@@ -98,7 +113,7 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
 
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <th scope="col" className="px-4 py-3 font-semibold">
@@ -110,6 +125,9 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
                 <th scope="col" className="px-4 py-3 font-semibold">
                   Bilangan Anak
                 </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Pendidik
+                </th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">
                   Tindakan
                 </th>
@@ -119,7 +137,7 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
               {classes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="px-4 py-8 text-center text-sm text-slate-500"
                   >
                     Tiada kelas lagi. Klik &quot;Tambah Kelas Baru&quot; untuk mula.
@@ -128,6 +146,11 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
               ) : (
                 classes.map((cls) => {
                   const count = studentCounts[cls.id] ?? 0;
+                  const assigned = (teacherIdsByClass[cls.id] ?? [])
+                    .map((id) => ({ id, name: teacherNameById[id] }))
+                    .filter((t): t is { id: string; name: string } =>
+                      Boolean(t.name)
+                    );
                   return (
                     <tr key={cls.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-semibold text-slate-900">
@@ -141,6 +164,25 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
                           <Users className="h-3.5 w-3.5 text-slate-400" aria-hidden />
                           {count} anak
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {assigned.length === 0 ? (
+                          <span className="text-xs text-slate-400">
+                            Belum ditugaskan
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {assigned.map((teacher) => (
+                              <span
+                                key={`${cls.id}-${teacher.id}`}
+                                className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800"
+                              >
+                                <UserRound className="h-3 w-3" aria-hidden />
+                                {teacher.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
@@ -177,6 +219,10 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
       {modalOpen && (
         <ClassModal
           cls={editing}
+          teachers={teachers}
+          initialTeacherIds={
+            editing ? teacherIdsByClass[editing.id] ?? [] : []
+          }
           saving={saving}
           error={formError}
           onClose={() => {
@@ -243,19 +289,40 @@ export function ClassManager({ classes, studentCounts }: ClassManagerProps) {
 
 interface ClassModalProps {
   cls: ClassRow | null;
+  teachers: TeacherOption[];
+  initialTeacherIds: string[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
   onSubmit: (input: ClassInput) => void;
 }
 
-function ClassModal({ cls, saving, error, onClose, onSubmit }: ClassModalProps) {
+function ClassModal({
+  cls,
+  teachers,
+  initialTeacherIds,
+  saving,
+  error,
+  onClose,
+  onSubmit,
+}: ClassModalProps) {
   const [className, setClassName] = useState(cls?.class_name ?? '');
   const [year, setYear] = useState(String(cls?.year ?? 4));
+  const [teacherIds, setTeacherIds] = useState<string[]>(initialTeacherIds);
+
+  function toggleTeacher(id: string) {
+    setTeacherIds((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    onSubmit({ class_name: className, year: Number(year) });
+    onSubmit({
+      class_name: className,
+      year: Number(year),
+      teacher_ids: teacherIds,
+    });
   }
 
   return (
@@ -270,7 +337,7 @@ function ClassModal({ cls, saving, error, onClose, onSubmit }: ClassModalProps) 
         role="dialog"
         aria-modal="true"
         aria-labelledby="class-modal-title"
-        className="relative z-10 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
       >
         <h2 id="class-modal-title" className="text-base font-bold text-slate-900">
           {cls ? 'Sunting Kelas' : 'Tambah Kelas Baru'}
@@ -324,6 +391,47 @@ function ClassModal({ cls, saving, error, onClose, onSubmit }: ClassModalProps) 
               ))}
             </select>
           </div>
+
+          <fieldset>
+            <legend className="mb-1 block text-sm font-medium text-slate-700">
+              Pendidik Ditugaskan
+            </legend>
+            {teachers.length === 0 ? (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                Tiada pendidik berdaftar. Tambah pendidik di menu Pengurusan
+                Pendidik terlebih dahulu.
+              </p>
+            ) : (
+              <div
+                className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-1"
+                role="group"
+                aria-label="Pilih pendidik untuk kelas ini"
+              >
+                {teachers.map((teacher) => {
+                  const checkboxId = `teacher-${teacher.id}`;
+                  return (
+                    <label
+                      key={teacher.id}
+                      htmlFor={checkboxId}
+                      className="flex min-h-touch cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        id={checkboxId}
+                        type="checkbox"
+                        checked={teacherIds.includes(teacher.id)}
+                        onChange={() => toggleTeacher(teacher.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                      />
+                      <span className="truncate">{teacher.full_name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              {teacherIds.length} pendidik dipilih
+            </p>
+          </fieldset>
         </div>
 
         <div className="mt-5 flex justify-end gap-2">

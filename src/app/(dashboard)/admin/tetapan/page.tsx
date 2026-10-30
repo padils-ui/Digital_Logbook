@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { CenterSettingsForm } from '@/components/admin/center-settings-form';
 import { LetterheadUploader } from '@/components/admin/letterhead-uploader';
+import { LogoUploader } from '@/components/admin/logo-uploader';
 import { AcademicCalendarManager } from '@/components/admin/academic-calendar-manager';
 import type { AcademicCalendarRow, CenterSettings } from '@/lib/types';
 
@@ -24,7 +25,7 @@ export default async function AdminTetapanPage() {
     admin
       .from('center_settings')
       .select(
-        'id, tenant_id, center_name, code, address, phone, email, academic_year, letterhead_url, updated_at'
+        'id, tenant_id, center_name, code, address, phone, email, academic_year, letterhead_url, logo_url, updated_at'
       )
       .eq('tenant_id', tenantId)
       .maybeSingle(),
@@ -44,7 +45,7 @@ export default async function AdminTetapanPage() {
       <header>
         <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Tetapan PAPN</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Tetapan pusat, kepala surat dan takwim akademik.
+          Tetapan pusat, logo, kepala surat dan takwim akademik.
         </p>
       </header>
 
@@ -62,12 +63,21 @@ export default async function AdminTetapanPage() {
           <CenterSettingsForm settings={settings} />
         </section>
 
-        <section className="card p-5">
-          <LetterheadUploader
-            letterheadUrl={settings?.letterhead_url ?? null}
-            disabled={settings === null}
-          />
-        </section>
+        <div className="space-y-6">
+          <section className="card p-5">
+            <LogoUploader
+              logoUrl={settings?.logo_url ?? null}
+              disabled={settings === null}
+            />
+          </section>
+
+          <section className="card p-5">
+            <LetterheadUploader
+              letterheadUrl={settings?.letterhead_url ?? null}
+              disabled={settings === null}
+            />
+          </section>
+        </div>
       </div>
 
       <AcademicCalendarManager entries={calendarEntries} />

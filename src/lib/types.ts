@@ -86,6 +86,12 @@ export interface ClassRow {
   created_at: string;
 }
 
+/** Pilihan pendidik ringkas untuk pemilih tugasan kelas. */
+export interface TeacherOption {
+  id: string;
+  full_name: string;
+}
+
 export interface Student {
   id: string;
   tenant_id: string;
@@ -219,6 +225,8 @@ export interface CenterSettings {
   academic_year: string | null;
   /** URL awam imej kepala surat dalam baldi `center-assets`. */
   letterhead_url: string | null;
+  /** URL awam logo pusat / ikon aplikasi dalam baldi `center-assets`. */
+  logo_url: string | null;
   updated_at: string;
 }
 

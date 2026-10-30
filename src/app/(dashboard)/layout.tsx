@@ -20,17 +20,27 @@ export default async function DashboardLayout({
   if (!profile) redirect('/login');
 
   const supabase = createClient();
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('name, app_name')
-    .eq('id', profile.tenant_id)
-    .maybeSingle();
+  const [tenantRes, settingsRes] = await Promise.all([
+    supabase
+      .from('tenants')
+      .select('name, app_name')
+      .eq('id', profile.tenant_id)
+      .maybeSingle(),
+    supabase
+      .from('center_settings')
+      .select('logo_url')
+      .eq('tenant_id', profile.tenant_id)
+      .maybeSingle(),
+  ]);
+
+  const tenant = tenantRes.data;
 
   return (
     <AppShell
       role={profile.role as UserRole}
       fullName={profile.full_name}
       tenantName={tenant?.app_name || tenant?.name || 'PAPN'}
+      logoUrl={settingsRes.data?.logo_url ?? null}
     >
       {children}
     </AppShell>

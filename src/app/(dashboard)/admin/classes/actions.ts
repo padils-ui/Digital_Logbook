@@ -7,6 +7,8 @@ import { getCurrentUser } from '@/lib/auth';
 export interface ClassInput {
   class_name: string;
   year: number;
+  /** Senarai id pendidik yang ditugaskan ke kelas ini. */
+  teacher_ids: string[];
 }
 
 export interface ClassActionResult {
@@ -26,6 +28,69 @@ async function requireAdmin() {
   return { profile, error: null };
 }
 
+/** Normalisasi senarai id pendidik (buang kosong & ulangan). */
+function normaliseIds(ids: string[] | undefined): string[] {
+  return Array.from(new Set((ids ?? []).filter(Boolean)));
+}
+
+/**
+ * Tapis id pendidik kepada yang benar-benar milik tenant pengguna
+ * dan berperanan sebagai pendidik / pentadbir.
+ */
+async function validTeacherIds(
+  tenantId: string,
+  teacherIds: string[]
+): Promise<string[]> {
+  const unique = normaliseIds(teacherIds);
+  if (unique.length === 0) return [];
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('users')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('role', ['teacher', 'admin_papn'])
+    .in('id', unique);
+
+  return (data ?? []).map((row: { id: string }) => row.id);
+}
+
+/** Gantikan tugasan pendidik bagi sebuah kelas. */
+async function syncClassTeachers(
+  classId: string,
+  tenantId: string,
+  teacherIds: string[]
+): Promise<string | null> {
+  const admin = createAdminClient();
+  const valid = await validTeacherIds(tenantId, teacherIds);
+
+  const { error: deleteError } = await admin
+    .from('class_teachers')
+    .delete()
+    .eq('class_id', classId)
+    .eq('tenant_id', tenantId);
+
+  if (deleteError) {
+    return `Gagal mengemas kini tugasan pendidik: ${deleteError.message}`;
+  }
+
+  if (valid.length === 0) return null;
+
+  const { error: insertError } = await admin.from('class_teachers').insert(
+    valid.map((teacherId) => ({
+      tenant_id: tenantId,
+      class_id: classId,
+      teacher_id: teacherId,
+    }))
+  );
+
+  if (insertError) {
+    return `Gagal menyimpan tugasan pendidik: ${insertError.message}`;
+  }
+
+  return null;
+}
+
 /** Tambah kelas baharu untuk tenant pengguna. */
 export async function createClass(
   input: ClassInput
@@ -43,18 +108,33 @@ export async function createClass(
   }
 
   const admin = createAdminClient();
-  const { error: insertError } = await admin.from('classes').insert({
-    tenant_id: profile.tenant_id,
-    class_name: className,
-    year,
-  });
+  const { data: created, error: insertError } = await admin
+    .from('classes')
+    .insert({
+      tenant_id: profile.tenant_id,
+      class_name: className,
+      year,
+    })
+    .select('id')
+    .single();
 
-  if (insertError) {
-    return { ok: false, error: `Gagal menambah kelas: ${insertError.message}` };
+  if (insertError || !created) {
+    return {
+      ok: false,
+      error: `Gagal menambah kelas: ${insertError?.message ?? 'rekod tidak dikembalikan'}`,
+    };
   }
+
+  const syncError = await syncClassTeachers(
+    (created as { id: string }).id,
+    profile.tenant_id,
+    input.teacher_ids
+  );
+  if (syncError) return { ok: false, error: syncError };
 
   revalidatePath('/admin/classes');
   revalidatePath('/admin/students');
+  revalidatePath('/admin/pendidik');
   return { ok: true };
 }
 
@@ -76,18 +156,31 @@ export async function updateClass(
   }
 
   const admin = createAdminClient();
-  const { error: updateError } = await admin
+  const { data: updated, error: updateError } = await admin
     .from('classes')
     .update({ class_name: className, year })
     .eq('id', classId)
-    .eq('tenant_id', profile.tenant_id);
+    .eq('tenant_id', profile.tenant_id)
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     return { ok: false, error: `Gagal mengemas kini kelas: ${updateError.message}` };
   }
+  if (!updated) {
+    return { ok: false, error: 'Kelas tidak dijumpai untuk pusat anda.' };
+  }
+
+  const syncError = await syncClassTeachers(
+    classId,
+    profile.tenant_id,
+    input.teacher_ids
+  );
+  if (syncError) return { ok: false, error: syncError };
 
   revalidatePath('/admin/classes');
   revalidatePath('/admin/students');
+  revalidatePath('/admin/pendidik');
   return { ok: true };
 }
 
@@ -131,5 +224,6 @@ export async function deleteClass(classId: string): Promise<ClassActionResult> {
 
   revalidatePath('/admin/classes');
   revalidatePath('/admin/students');
+  revalidatePath('/admin/pendidik');
   return { ok: true };
 }
