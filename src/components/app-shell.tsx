@@ -17,6 +17,7 @@ import {
   Menu,
   Settings,
   UserCog,
+  UserCheck,
   Users,
   UserRound,
   UsersRound,
@@ -43,6 +44,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
+    { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
   admin_papn: [
     { href: '/dashboard', label: 'Papan Pemuka', icon: LayoutDashboard },
@@ -53,6 +55,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
+    { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
   teacher: [
     { href: '/teacher', label: 'Ruang Pendidik', icon: BookOpenText },
@@ -60,10 +63,15 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/teacher/pentaksiran', label: 'Laporan Pentaksiran', icon: FileText },
     { href: '/profile-cards', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
+    { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
   parent: [
-    { href: '/parent', label: 'Ruang Ibu Bapa', icon: Users },
+    { href: '/parent', label: 'Papan Pemuka', icon: LayoutDashboard },
+    { href: '/parent/today', label: 'Aktiviti Hari Ini', icon: Activity },
+    { href: '/parent/logs', label: 'Log & Ulasan', icon: FileText },
+    { href: '/parent/profile', label: 'Kad Profil Anak', icon: IdCard },
     { href: '/profile', label: 'Kad Profil', icon: UserRound },
+    { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
 };
 
@@ -72,6 +80,7 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
  * admin_papn. Item navigasi sedia ada tidak diubah.
  */
 const ADMIN_SECTION_ITEMS: NavItem[] = [
+  { href: '/admin/approvals', label: 'Kelulusan Pendaftaran', icon: UserCheck },
   { href: '/admin/pendidik', label: 'Pengurusan Pendidik', icon: UserCog },
   { href: '/admin/ibu-bapa', label: 'Pengurusan Ibu Bapa', icon: UsersRound },
   { href: '/admin/pemantauan', label: 'Pemantauan Log & AI', icon: Activity },
@@ -125,8 +134,9 @@ export function AppShell({
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    // Buang cookie peranan supaya sesi seterusnya bermula bersih.
+    // Buang cookie peranan dan status supaya sesi seterusnya bermula bersih.
     document.cookie = 'papn_role=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'papn_status=; path=/; max-age=0; SameSite=Lax';
     window.location.href = '/login';
   }
 
@@ -141,7 +151,9 @@ export function AppShell({
         onClick={() => setOpen(false)}
         aria-current={active ? 'page' : undefined}
         className={`flex min-h-touch items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-          active ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100'
+          active
+            ? 'bg-brand-600 text-white'
+            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
         }`}
       >
         <Icon className="h-5 w-5 shrink-0" aria-hidden />
@@ -155,8 +167,8 @@ export function AppShell({
       <div className="flex flex-col gap-1">{items.map(renderItem)}</div>
 
       {adminItems.length > 0 ? (
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
             Pentadbiran PAPN
           </p>
           <div className="flex flex-col gap-1">{adminItems.map(renderItem)}</div>
@@ -179,16 +191,16 @@ export function AppShell({
           />
         </span>
       ) : null}
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
         {tenantName}
       </p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Bar atas */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 md:px-6">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900 md:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -215,19 +227,19 @@ export function AppShell({
                   className="object-contain"
                 />
               </span>
-              <span className="hidden text-sm font-bold text-slate-900 sm:inline sm:text-base">
+              <span className="hidden text-sm font-bold text-slate-900 dark:text-slate-100 sm:inline sm:text-base">
                 {tenantName}
               </span>
             </Link>
           ) : (
-            <span className="shrink-0 text-sm font-bold text-slate-900 sm:text-base">
+            <span className="shrink-0 text-sm font-bold text-slate-900 dark:text-slate-100 sm:text-base">
               PERMATALog
             </span>
           )}
           {activeTitle ? (
             <span className="flex min-w-0 items-center gap-2">
-              <span className="hidden h-4 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
-              <span className="truncate text-sm font-medium text-slate-600">
+              <span className="hidden h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-800 sm:block" aria-hidden />
+              <span className="truncate text-sm font-medium text-slate-600 dark:text-slate-400">
                 {activeTitle}
               </span>
             </span>
@@ -235,10 +247,10 @@ export function AppShell({
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right sm:block">
-            <p className="text-sm font-semibold leading-tight text-slate-800">
+            <p className="text-sm font-semibold leading-tight text-slate-800 dark:text-slate-100">
               {fullName}
             </p>
-            <p className="text-xs leading-tight text-slate-500">
+            <p className="text-xs leading-tight text-slate-500 dark:text-slate-400">
               {ROLE_LABEL[role]}
             </p>
           </div>
@@ -255,7 +267,7 @@ export function AppShell({
 
       <div className="mx-auto flex w-full max-w-7xl">
         {/* Sidebar desktop */}
-        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 border-r border-slate-200 bg-white p-4 md:block">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 md:block">
           {tenantHeading}
           {nav}
         </aside>
@@ -271,7 +283,7 @@ export function AppShell({
             <aside
               id="mobile-nav-drawer"
               aria-label="Navigasi mudah alih"
-              className="absolute left-0 top-14 h-[calc(100vh-3.5rem)] w-64 max-w-[85vw] overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-xl"
+              className="absolute left-0 top-14 h-[calc(100vh-3.5rem)] w-64 max-w-[85vw] overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-900"
             >
               {tenantHeading}
               {nav}

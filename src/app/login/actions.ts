@@ -3,9 +3,9 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { ROLE_COOKIE } from '@/middleware';
+import { ROLE_COOKIE, STATUS_COOKIE } from '@/middleware';
 import { roleHome } from '@/lib/auth';
-import type { UserRole } from '@/lib/types';
+import type { UserApprovalStatus, UserRole } from '@/lib/types';
 
 export interface LoginState {
   error?: string;
@@ -31,11 +31,12 @@ const PHONE_EMAIL_DOMAIN = 'papn.local';
 async function fetchAccount(userId: string): Promise<{
   role: UserRole;
   isActive: boolean;
+  status: UserApprovalStatus;
 } | null> {
   const admin = createAdminClient();
   const { data: profile, error } = await admin
     .from('users')
-    .select('role, is_active')
+    .select('role, is_active, status')
     .eq('id', userId)
     .maybeSingle();
 
@@ -44,7 +45,11 @@ async function fetchAccount(userId: string): Promise<{
   const role = profile?.role as UserRole | undefined;
   if (!role || !VALID_ROLES.includes(role)) return null;
 
-  return { role, isActive: profile?.is_active !== false };
+  return {
+    role,
+    isActive: profile?.is_active !== false,
+    status: (profile?.status as UserApprovalStatus) ?? 'approved',
+  };
 }
 
 
@@ -132,7 +137,11 @@ export async function loginAction(
 
   // Sahkan peranan menggunakan klien pentadbir (service role) supaya
   // pengesahan tidak terjejas oleh kependaman cookie/RLS selepas log masuk.
-  let account: { role: UserRole; isActive: boolean } | null = null;
+  let account: {
+    role: UserRole;
+    isActive: boolean;
+    status: UserApprovalStatus;
+  } | null = null;
   try {
     account = await fetchAccount(signedInUserId);
     console.log('[loginAction] peranan dalam pangkalan data:', account?.role);
@@ -171,6 +180,15 @@ export async function loginAction(
     return { error: 'Peranan yang dipilih tidak sepadan dengan akaun anda.' };
   }
 
+  if (account.status === 'rejected') {
+    console.log('[loginAction] akaun ditolak:', signedInUserId);
+    await supabase.auth.signOut();
+    return {
+      error:
+        'Permohonan pendaftaran akaun anda telah ditolak. Sila hubungi pentadbir PAPN.',
+    };
+  }
+
   // Tetapkan cookie peranan supaya middleware (Edge runtime) boleh
   // menguatkuasakan kawalan akses tanpa mengakses service role key.
   const cookieStore = cookies();
@@ -181,7 +199,20 @@ export async function loginAction(
     path: '/',
     maxAge: 60 * 60 * 24 * 7,
   });
-  console.log('[loginAction] cookie papn_role ditetapkan:', actualRole, '— mengubah hala ke:', redirectTo || roleHome(actualRole));
+  cookieStore.set(STATUS_COOKIE, account.status, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  });
+  console.log('[loginAction] cookie papn_role ditetapkan:', actualRole, 'status:', account.status);
+
+  // Akaun 'pending' masih boleh log masuk supaya mereka boleh melihat skrin
+  // /pending-approval dan log keluar — tetapi tidak boleh masuk ruang kerja.
+  if (account.status === 'pending') {
+    return { redirectTo: '/pending-approval' };
+  }
 
   const destination = redirectTo && redirectTo.startsWith('/') ? redirectTo : roleHome(actualRole);
   return { redirectTo: destination };

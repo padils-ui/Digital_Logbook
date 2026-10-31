@@ -7,7 +7,7 @@ import { updateDriveFile } from '@/lib/google-drive';
 import { revalidatePath } from 'next/cache';
 
 export async function submitParentComment(formData: FormData) {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   const logId = formData.get('logId') as string;
   const parentComment = formData.get('parentComment') as string;
@@ -77,6 +77,6 @@ export async function submitParentComment(formData: FormData) {
     console.error('[Parent Action] Ralat semasa menjana/mengemas kini PDF:', pdfErr);
   }
 
-  revalidatePath('/parent');
+  revalidatePath('/parent/logs');
   return { success: true };
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { GroupedDailyReport } from '@/app/(dashboard)/parent/page';
+import type { GroupedDailyReport } from '@/lib/types';
 
 interface LogSummaryCardProps {
   report: GroupedDailyReport;
@@ -74,17 +74,17 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
   if (!report) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
       {/* Clickable Header / Accordion Toggle */}
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full text-left p-5 flex items-center justify-between hover:bg-slate-50 transition-colors focus:outline-none"
+        className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-slate-50 focus:outline-none dark:hover:bg-slate-800/60"
       >
         <div className="flex items-center gap-3">
           {/* Chevron Icon */}
           <svg
-            className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${
+            className={`h-5 w-5 text-slate-400 transition-transform duration-200 dark:text-slate-500 ${
               isExpanded ? 'rotate-180' : ''
             }`}
             fill="none"
@@ -96,22 +96,22 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
 
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-base font-bold text-slate-800">{report.date}</span>
-              <span className="text-xs text-slate-400 font-normal">
+              <span className="text-base font-bold text-slate-800 dark:text-slate-100">{report.date}</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
                 ({report.entries.length} catatan)
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">{report.studentName}</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{report.studentName}</p>
           </div>
         </div>
 
         <div>
           {isReviewed ? (
-            <span className="px-3 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
               Telah Disahkan
             </span>
           ) : (
-            <span className="px-3 py-1 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
               Ulasan Diperlukan
             </span>
           )}
@@ -120,10 +120,10 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
 
       {/* Collapsible Content */}
       {isExpanded && (
-        <div className="p-5 pt-0 border-t border-slate-100 space-y-5 mt-3">
+        <div className="mt-3 space-y-5 border-t border-slate-100 p-5 pt-0 dark:border-slate-800">
           {/* Combined Teacher Entries for the Day */}
           <div className="space-y-4 pt-2">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Laporan Harian Daripada Pendidik ({report.entries.length} Catatan)
             </h3>
 
@@ -168,15 +168,15 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
               return (
                 <div
                   key={entry.id || index}
-                  className="bg-slate-50 p-4 rounded-lg border border-slate-200/70 space-y-3"
+                  className="space-y-3 rounded-lg border border-slate-200/70 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/60"
                 >
                   {/* Category Badge & Entry Header */}
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded tracking-wide">
+                    <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-800 dark:bg-blue-950 dark:text-blue-300">
                       {entry.category ? entry.category.replace(/_/g, ' ') : `Catatan #${index + 1}`}
                     </span>
                     {entry.created_at && (
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">
                         {new Date(entry.created_at).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
@@ -190,14 +190,14 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
                     <div className="space-y-2">
                       {activityRows.map((row) => (
                         <div key={row.label} className="space-y-1">
-                          <p className="text-xs font-semibold text-slate-800">
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                             {row.label}:{' '}
-                            <span className="font-normal text-slate-600">
+                            <span className="font-normal text-slate-600 dark:text-slate-400">
                               {row.activity || 'Tiada'}
                             </span>
                           </p>
                           {row.penglibatan && (
-                            <span className="inline-block text-xs bg-white text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-medium">
+                            <span className="inline-block rounded border border-blue-200 bg-white px-2 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-900 dark:bg-slate-900 dark:text-blue-300">
                               Penglibatan: {row.penglibatan}
                             </span>
                           )}
@@ -212,7 +212,7 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
                       {detailRows.map((row) => (
                         <span
                           key={row.label}
-                          className="text-xs bg-white text-slate-700 border border-slate-200 px-2 py-0.5 rounded font-medium"
+                          className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         >
                           {row.label}: {row.value}
                         </span>
@@ -222,16 +222,16 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
 
                   {/* Notes */}
                   <div>
-                    <span className="text-xs font-semibold text-slate-700">Catatan Pendidik:</span>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed whitespace-pre-line">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Catatan Pendidik:</span>
+                    <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-slate-400">
                       {teacherNotes || 'Tiada catatan tambahan.'}
                     </p>
                   </div>
 
                   {/* Media Image Gallery */}
                   {mediaUrls.length > 0 && (
-                    <div className="pt-2 border-t border-slate-200/60 space-y-2">
-                      <span className="text-xs font-semibold text-slate-700">Gambar / Lampiran:</span>
+                    <div className="space-y-2 border-t border-slate-200/60 pt-2 dark:border-slate-800">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Gambar / Lampiran:</span>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {mediaUrls.map((url, mediaIndex) => {
                           const displayUrl = formatImageUrl(url);
@@ -244,7 +244,7 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
                                 href={url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center justify-center h-24 p-2 rounded-lg border border-slate-200 bg-white text-blue-600 hover:text-blue-800 text-xs text-center font-medium underline"
+                                className="flex h-24 items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-center text-xs font-medium text-blue-600 underline hover:text-blue-800 dark:border-slate-700 dark:bg-slate-900 dark:text-blue-400 dark:hover:text-blue-300"
                               >
                                 Lihat Gambar {mediaIndex + 1} ↗
                               </a>
@@ -257,7 +257,7 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="group relative h-32 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 block"
+                              className="group relative block h-32 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
                             >
                               <img
                                 src={displayUrl}
@@ -281,19 +281,19 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
           </div>
 
           {/* Unified Parent Review Section for the Entire Day */}
-          <div className="pt-3 border-t border-slate-100">
+          <div className="border-t border-slate-100 pt-3 dark:border-slate-800">
             {isReviewed ? (
-              <div className="bg-emerald-50/50 p-3.5 rounded-lg border border-emerald-100 text-xs text-slate-700 space-y-1">
-                <span className="font-semibold text-emerald-800">
+              <div className="space-y-1 rounded-lg border border-emerald-100 bg-emerald-50/50 p-3.5 text-xs text-slate-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-slate-300">
+                <span className="font-semibold text-emerald-800 dark:text-emerald-300">
                   Ulasan / Pengesahan Ibu Bapa Bagi Laporan Ini:
                 </span>
-                <p className="italic text-slate-600">
+                <p className="italic text-slate-600 dark:text-slate-400">
                   {report.parentComment || 'Log harian ini telah disahkan tanpa catatan.'}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-3">
-                <label className="block text-xs font-semibold text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ulasan / Catatan Ibu Bapa (Bagi Keseluruhan Laporan Harian Ini):
                 </label>
                 <textarea
@@ -301,12 +301,12 @@ export function LogSummaryCard({ report }: LogSummaryCardProps) {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="Taip ulasan atau sahkan penerimaan laporan log harian hari ini..."
-                  className="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 p-3 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                  className="w-full rounded-lg bg-brand-600 py-2.5 text-xs font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
                 >
                   {isSubmitting ? 'Penghantaran...' : 'Hantar & Sahkan Laporan Harian'}
                 </button>

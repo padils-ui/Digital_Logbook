@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { ROLE_COOKIE } from '@/middleware';
+import { ROLE_COOKIE, STATUS_COOKIE } from '@/middleware';
 import { roleHome } from '@/lib/auth';
-import type { UserRole } from '@/lib/types';
+import type { UserApprovalStatus, UserRole } from '@/lib/types';
 
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin_papn', 'teacher', 'parent'];
 
@@ -94,11 +94,12 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   let actualRole: UserRole | null = null;
   let isActive = true;
+  let approvalStatus: UserApprovalStatus = 'approved';
 
   try {
     const { data: existingProfile, error: fetchErr } = await admin
       .from('users')
-      .select('role, is_active')
+      .select('role, is_active, status')
       .eq('id', userId)
       .maybeSingle();
 
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
       const r = existingProfile.role as UserRole | undefined;
       actualRole = r && VALID_ROLES.includes(r) ? r : null;
       isActive = existingProfile.is_active !== false;
+      approvalStatus = (existingProfile.status as UserApprovalStatus) ?? 'approved';
       console.log('[api/auth/login] peranan dalam pangkalan data:', actualRole);
     } else {
       console.log('[api/auth/login] tiada profil, cuba auto-daftar…');
@@ -154,6 +156,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         role: role as UserRole,
         phone_number: null,
+        status: 'approved',
       });
 
       if (insertErr) {
@@ -204,8 +207,26 @@ export async function POST(request: NextRequest) {
   }
 
   // --- Langkah 3: Bina respons akhir dengan SEMUA cookies dalam satu operasi ---
+  if (approvalStatus === 'rejected') {
+    console.log('[api/auth/login] akaun ditolak:', userId);
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      {
+        error:
+          'Permohonan pendaftaran akaun anda telah ditolak. Sila hubungi pentadbir PAPN.',
+      },
+      { status: 403 }
+    );
+  }
+
+  // Akaun 'pending' masih boleh log masuk supaya mereka boleh melihat skrin
+  // /pending-approval dan log keluar — tetapi tidak boleh masuk ruang kerja.
   const destination =
-    redirectTo && redirectTo.startsWith('/') ? redirectTo : roleHome(actualRole);
+    approvalStatus === 'pending'
+      ? '/pending-approval'
+      : redirectTo && redirectTo.startsWith('/')
+        ? redirectTo
+        : roleHome(actualRole);
 
   console.log('[api/auth/login] log masuk berjaya, peranan:', actualRole, '→', destination);
 
@@ -219,6 +240,16 @@ export async function POST(request: NextRequest) {
   // Terapkan cookie papn_role — httpOnly: false supaya JS boleh debug,
   // tapi middleware membaca dari request.cookies (tidak memerlukan JS access).
   jsonResponse.cookies.set(ROLE_COOKIE, actualRole, {
+    httpOnly: false,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  });
+
+  // Cermin status kelulusan supaya middleware Edge boleh menyekat akaun
+  // yang belum diluluskan tanpa membuat pertanyaan pangkalan data.
+  jsonResponse.cookies.set(STATUS_COOKIE, approvalStatus, {
     httpOnly: false,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',

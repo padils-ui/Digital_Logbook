@@ -10,6 +10,10 @@ type Role = 'super_admin' | 'admin_papn' | 'teacher' | 'parent';
  */
 const PUBLIC_PATHS = [
   '/login',
+  // Pendaftaran sendiri berlaku SEBELUM sesi wujud.
+  '/signup',
+  // Halaman ini mesti boleh dicapai oleh akaun yang belum diluluskan.
+  '/pending-approval',
   '/auth/callback',
   '/offline',
   '/api/auth',
@@ -38,6 +42,16 @@ const ROUTE_ROLES: { prefix: string; roles: Role[] }[] = [
 /** Nama cookie yang menyimpan peranan pengguna (ditetapkan semasa log masuk). */
 export const ROLE_COOKIE = 'papn_role';
 
+/**
+ * Nama cookie yang menyimpan status kelulusan akaun ('pending' | 'approved').
+ *
+ * Middleware berjalan pada Edge runtime dan TIDAK boleh membuat pertanyaan
+ * pangkalan data, jadi status disimpan dalam cookie sebagai cermin kepada
+ * `public.users.status`. Semakan sebenar dan muktamad tetap dibuat di
+ * peringkat pangkalan data (RLS `get_auth_tenant_id()`) dan layout pelayan.
+ */
+export const STATUS_COOKIE = 'papn_status';
+
 function isRole(value: string | undefined): value is Role {
   return (
     value === 'super_admin' ||
@@ -58,6 +72,9 @@ function isRole(value: string | undefined): value is Role {
  *    selepas pengesahan berjaya. Jika ada dan sah, benarkan akses terus
  *    tanpa perlu menunggu getUser() — ini mengelakkan isu sesi lambat
  *    selepas window.location.href redirect.
+ *
+ * 2a. Jika cookie papn_status ialah 'pending', akaun belum diluluskan oleh
+ *    pentadbir. Semua laluan bukan awam diubah hala ke /pending-approval.
  *
  * 3. Jika tiada cookie papn_role, semak sesi Supabase. Jika tiada sesi,
  *    ubah hala ke /login sekali sahaja.
@@ -81,6 +98,8 @@ export async function middleware(request: NextRequest) {
   // Baca cookie papn_role dari request.
   const cookieRole = request.cookies.get(ROLE_COOKIE)?.value;
   const role = isRole(cookieRole) ? cookieRole : null;
+  const isPending =
+    request.cookies.get(STATUS_COOKIE)?.value === 'pending';
 
   console.log('[Middleware]', pathname, 'papn_role:', cookieRole ?? '(tiada)');
 
@@ -88,6 +107,17 @@ export async function middleware(request: NextRequest) {
   // Ini mengelakkan isu di mana sb-* session cookies belum dihantar
   // pada permintaan pertama selepas window.location.href redirect.
   if (role) {
+    // Peraturan 2a: Akaun yang belum diluluskan disekat daripada semua
+    // ruang kerja. Middleware hanya membaca cookie; pengesahan muktamad
+    // dibuat oleh RLS dan layout pelayan.
+    if (isPending) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/pending-approval';
+      url.search = '';
+      console.log('[Middleware] akaun belum diluluskan → /pending-approval');
+      return NextResponse.redirect(url);
+    }
+
     const rule = ROUTE_ROLES.find(
       (item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`)
     );

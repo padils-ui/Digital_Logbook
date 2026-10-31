@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = {
@@ -20,6 +21,15 @@ export default function LoginPage({
           </p>
         </div>
         <LoginForm redirectTo={searchParams.redirectTo ?? ''} />
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Belum mempunyai akaun?{' '}
+          <Link
+            href="/signup"
+            className="font-semibold text-brand-700 hover:underline"
+          >
+            Daftar Akaun Baharu
+          </Link>
+        </p>
       </div>
     </main>
   );

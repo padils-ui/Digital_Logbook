@@ -84,9 +84,12 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8"
+    >
       <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-slate-700">
+        <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           Pilih Peranan
         </legend>
         <div className="grid gap-2">
@@ -101,19 +104,31 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
                 aria-pressed={active}
                 className={`flex min-h-touch items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
                   active
-                    ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-300'
-                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                    ? 'border-brand-600 bg-brand-600 text-white ring-1 ring-brand-600'
+                    : 'border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:hover:bg-slate-900/70'
                 }`}
               >
                 <Icon
-                  className={`h-5 w-5 shrink-0 ${active ? 'text-brand-600' : 'text-slate-400'}`}
+                  className={`h-5 w-5 shrink-0 ${
+                    active
+                      ? 'text-white'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
                   aria-hidden
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-slate-800">
+                  <span
+                    className={`block text-sm font-semibold ${
+                      active ? 'text-white' : 'text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
                     {item.label}
                   </span>
-                  <span className="block truncate text-xs text-slate-500">
+                  <span
+                    className={`block truncate text-xs ${
+                      active ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
                     {item.description}
                   </span>
                 </span>
@@ -124,12 +139,15 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
       </fieldset>
 
       <div className="space-y-1">
-        <label htmlFor="identifier" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="identifier"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           E-mel atau Nombor Telefon
         </label>
         <div className="relative">
           <Phone
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <input
@@ -139,7 +157,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
             autoComplete="username"
             required
             placeholder="nama@papn.gov.my atau 0123456789"
-            className="input pl-9"
+            className="min-h-touch w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 pl-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-brand-900"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
           />
@@ -147,12 +165,15 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="password" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="password"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           Kata Laluan
         </label>
         <div className="relative">
           <Lock
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <input
@@ -162,7 +183,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
             autoComplete="current-password"
             required
             placeholder="••••••••"
-            className="input pl-9"
+            className="min-h-touch w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 pl-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-brand-900"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -172,7 +193,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
       {error && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 border border-red-200"
+          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {error}

@@ -19,6 +19,10 @@ export default async function DashboardLayout({
   const profile = await getCurrentUser();
   if (!profile) redirect('/login');
 
+  // Pengawal kelulusan yang berwibawa (melengkapi semakan cookie di middleware).
+  // Akaun yang belum diluluskan tidak boleh melihat mana-mana ruang kerja.
+  if (profile.status !== 'approved') redirect('/pending-approval');
+
   const supabase = createClient();
   const [tenantRes, settingsRes] = await Promise.all([
     supabase

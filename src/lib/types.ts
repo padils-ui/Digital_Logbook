@@ -1,5 +1,11 @@
 export type UserRole = 'super_admin' | 'admin_papn' | 'teacher' | 'parent';
 
+/**
+ * Status kelulusan akaun.
+ * Akaun `pending` / `rejected` tidak boleh mengakses data penyewa.
+ */
+export type UserApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface Tenant {
   id: string;
   name: string;
@@ -20,6 +26,8 @@ export interface AppUser {
   email: string | null;
   role: UserRole;
   is_active: boolean;
+  /** Status kelulusan pendaftaran akaun. */
+  status: UserApprovalStatus;
   created_at: string;
 }
 
@@ -76,6 +84,25 @@ export interface ClassTeacherRow {
   class_id: string;
   teacher_id: string;
   created_at: string;
+}
+
+/** Pilihan pusat PAPN untuk borang pendaftaran sendiri. */
+export interface CenterOption {
+  id: string;
+  name: string;
+}
+
+/** Baris baris gilir kelulusan pendaftaran untuk pentadbir PAPN. */
+export interface PendingApprovalRow {
+  id: string;
+  full_name: string;
+  email: string | null;
+  role: UserRole;
+  tenant_id: string;
+  /** Nama pusat PAPN yang dipilih semasa mendaftar. */
+  center_name: string;
+  created_at: string;
+  status: UserApprovalStatus;
 }
 
 export interface ClassRow {
@@ -137,6 +164,32 @@ export interface IncidentReport {
   created_at: string;
 }
 
+/** Sumber satu entri dalam garis masa aktiviti harian ibu bapa. */
+export type ActivityTimelineKind =
+  | 'activity'
+  | 'meal'
+  | 'sleep'
+  | 'health'
+  | 'attendance'
+  | 'incident';
+
+/** Satu entri garis masa aktiviti harian anak pada tarikh yang dipilih. */
+export interface ActivityTimelineEntry {
+  id: string;
+  kind: ActivityTimelineKind;
+  title: string;
+  description: string | null;
+  /** Label masa sedia format (waktu Malaysia), contoh `09:15`. */
+  time_label: string;
+  /** Cap masa ISO penuh untuk tujuan susunan kronologi. */
+  at: string;
+  details: { label: string; value: string }[];
+  media_urls: string[];
+}
+
+/** Keutamaan pengumuman pada papan pengumuman ibu bapa. */
+export type AnnouncementPriority = 'urgent' | 'general';
+
 export interface Announcement {
   id: string;
   tenant_id: string;
@@ -147,6 +200,39 @@ export interface Announcement {
   created_at: string;
   /** Benar jika pengumuman disematkan pada widget Papan Pemuka. */
   is_pinned: boolean;
+  /** Keutamaan — `urgent` dipaparkan sebagai sepanduk merah. */
+  priority?: AnnouncementPriority;
+  /** Tag kategori bebas, contoh `Keselamatan` atau `Acara`. */
+  category?: string | null;
+}
+
+/** Jenis acara takwim yang dipaparkan kepada ibu bapa. */
+export type TakwimEventType = 'mesyuarat' | 'cuti' | 'aktiviti' | 'lain';
+
+/** Satu acara dalam jadual `takwim_events`. */
+export interface TakwimEventRow {
+  id: string;
+  tenant_id: string;
+  title: string;
+  /** Butiran tambahan acara. */
+  description: string | null;
+  /** Tarikh ISO `YYYY-MM-DD`. */
+  event_date: string;
+  event_type: TakwimEventType;
+  /** Benar jika acara menutup operasi pusat (cuti). */
+  is_holiday: boolean;
+  created_at: string;
+}
+
+/** Laporan harian terkumpul bagi seorang anak pada satu tarikh. */
+export interface GroupedDailyReport {
+  date: string;
+  studentId: string;
+  studentName: string;
+  logIds: string[];
+  isReviewed: boolean;
+  parentComment: string | null;
+  entries: any[];
 }
 
 /** Tindakan yang direkodkan oleh trigger `assessment_audit_logs`. */
