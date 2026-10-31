@@ -53,14 +53,17 @@ export function LogComplianceMatrix({ groups, days }: Props) {
           Tiada murid berdaftar untuk pusat ini.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-pan-x">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <caption className="sr-only">
               Matriks kepatuhan log harian mengikut kelas dan murid bagi minggu yang dipilih.
             </caption>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <th scope="col" className="px-4 py-3 font-semibold">
+                <th
+                  scope="col"
+                  className="sticky left-0 z-20 bg-slate-50 px-4 py-3 font-semibold shadow-sm"
+                >
                   Murid
                 </th>
                 {days.map((date) => (
@@ -85,7 +88,10 @@ export function LogComplianceMatrix({ groups, days }: Props) {
               {groups.map((group) => (
                 <Fragment key={group.class_id ?? 'tanpa-kelas'}>
                   <tr>
-                    <td colSpan={days.length + 2} className="bg-slate-100 px-4 py-2">
+                    <td
+                      colSpan={days.length + 2}
+                      className="sticky left-0 z-10 min-w-[180px] bg-slate-100 px-4 py-2"
+                    >
                       <span className="text-sm font-semibold text-slate-800">
                         {group.class_name}
                       </span>
@@ -98,7 +104,7 @@ export function LogComplianceMatrix({ groups, days }: Props) {
                     <tr key={student.student_id} className="hover:bg-slate-50">
                       <th
                         scope="row"
-                        className="px-4 py-3 text-left text-sm font-medium text-slate-900"
+                        className="sticky left-0 z-10 bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 shadow-sm"
                       >
                         <span className="block">{student.full_name}</span>
                         {student.nickname ? (

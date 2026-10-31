@@ -112,7 +112,7 @@ export function ClassManager({
       )}
 
       <div className="card overflow-hidden p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-pan-x">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -235,7 +235,7 @@ export function ClassManager({
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <div
             className="absolute inset-0 bg-slate-900/50"
             onClick={() => {
@@ -247,7 +247,7 @@ export function ClassManager({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-class-title"
-            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+            className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-xl"
           >
             <h2
               id="delete-class-title"
@@ -326,7 +326,7 @@ function ClassModal({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-slate-900/50"
         onClick={onClose}
@@ -337,7 +337,7 @@ function ClassModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="class-modal-title"
-        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-xl"
       >
         <h2 id="class-modal-title" className="text-base font-bold text-slate-900">
           {cls ? 'Sunting Kelas' : 'Tambah Kelas Baru'}

@@ -42,8 +42,8 @@ export function AttendanceTrendChart({ points }: AttendanceTrendChartProps) {
       </div>
 
       {hasData ? (
-        <div className="mt-4 h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="mt-4 w-full">
+          <ResponsiveContainer width="100%" height={260}>
             <AreaChart
               data={points}
               margin={{ top: 8, right: 8, left: -16, bottom: 0 }}

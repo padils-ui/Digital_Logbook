@@ -90,7 +90,7 @@ export function AssessmentAuditTrail({ rows, cronRuns, actorNames, studentNames 
             atau dikemas kini.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-pan-x">
             <table className="w-full min-w-[880px] border-collapse text-left text-sm">
               <caption className="sr-only">
                 Jejak audit laporan pentaksiran bagi pusat ini, disusun daripada yang terbaharu.
@@ -199,7 +199,7 @@ export function AssessmentAuditTrail({ rows, cronRuns, actorNames, studentNames 
             Tiada rekod pelaksanaan bagi pusat ini.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto touch-pan-x">
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <caption className="sr-only">
                 Sejarah pelaksanaan cron pentaksiran mingguan bagi pusat ini.

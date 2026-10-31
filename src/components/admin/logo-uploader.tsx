@@ -160,7 +160,7 @@ export function LogoUploader({ logoUrl }: LogoUploaderProps) {
       </div>
 
       {confirmRemove && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <div
             className="absolute inset-0 bg-slate-900/50"
             onClick={() => {
@@ -172,7 +172,7 @@ export function LogoUploader({ logoUrl }: LogoUploaderProps) {
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="remove-logo-title"
-            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+            className="relative z-10 max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-xl"
           >
             <h3 id="remove-logo-title" className="text-base font-bold text-slate-900">
               Buang Logo Pusat?

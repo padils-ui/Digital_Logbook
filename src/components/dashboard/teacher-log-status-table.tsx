@@ -39,7 +39,7 @@ export function TeacherLogStatusTable({ rows }: TeacherLogStatusTableProps) {
           Tiada pendidik berdaftar untuk pusat anda.
         </p>
       ) : (
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 overflow-x-auto touch-pan-x">
           <table className="w-full min-w-[420px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">

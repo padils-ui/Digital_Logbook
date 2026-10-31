@@ -1,8 +1,6 @@
-'use client';
-
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import type { DistributionSlice } from '@/lib/types';
+import { DonutChart, type DonutChartDatum } from '@/components/dashboard/donut-chart';
 
 interface DistributionDonutCardProps {
   /** Tajuk kad. */
@@ -21,11 +19,15 @@ interface DistributionDonutCardProps {
   unitLabel?: string;
 }
 
+/** Warna sandaran jika palet tidak lengkap. */
+const FALLBACK_COLOR = '#94a3b8';
+
 /**
  * Kad carta donut generik untuk analitik Papan Pemuka.
  *
- * Digunakan untuk "Pecahan Kehadiran Hari Ini" dan "Analisis Sebab
- * Ketidakhadiran". Jumlah keseluruhan dipaparkan di tengah donut.
+ * Kad ini ialah Server Component — hanya carta Recharts yang diasingkan
+ * dalam `DonutChart` (komponen klien) supaya tiada fungsi (ikon) terpaksa
+ * dihantar merentas sempadan Server/Client.
  */
 export function DistributionDonutCard({
   title,
@@ -36,11 +38,20 @@ export function DistributionDonutCard({
   palette,
   unitLabel = 'rekod',
 }: DistributionDonutCardProps) {
-  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  const safeSlices = Array.isArray(slices) ? slices : [];
+  const total = safeSlices.reduce(
+    (sum, slice) => sum + (Number.isFinite(slice.value) ? slice.value : 0),
+    0
+  );
+
   const headingId = `donut-${title.replace(/\s+/g, '-').toLowerCase()}`;
-  const chartData = slices.map((slice, index) => ({
-    ...slice,
-    fill: palette[index % palette.length],
+  const chartData: DonutChartDatum[] = safeSlices.map((slice, index) => ({
+    label: slice.label,
+    value: Number.isFinite(slice.value) ? slice.value : 0,
+    fill:
+      palette.length > 0
+        ? palette[index % palette.length] ?? FALLBACK_COLOR
+        : FALLBACK_COLOR,
   }));
 
   return (
@@ -67,32 +78,8 @@ export function DistributionDonutCard({
         </p>
       ) : (
         <>
-          <div className="relative mt-2 h-44 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="label"
-                  innerRadius="62%"
-                  outerRadius="92%"
-                  paddingAngle={2}
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                >
-                  {chartData.map((slice) => (
-                    <Cell key={slice.label} fill={slice.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: 8,
-                    borderColor: '#e2e8f0',
-                    fontSize: 12,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="relative mt-2 w-full">
+            <DonutChart data={chartData} unitLabel={unitLabel} />
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-2xl font-bold leading-none text-slate-900">
                 {total}

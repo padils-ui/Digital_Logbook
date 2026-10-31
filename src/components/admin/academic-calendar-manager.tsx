@@ -114,7 +114,7 @@ export function AcademicCalendarManager({ entries }: AcademicCalendarManagerProp
       )}
 
       <div className="card overflow-hidden p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto touch-pan-x">
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -208,7 +208,7 @@ export function AcademicCalendarManager({ entries }: AcademicCalendarManagerProp
       )}
 
       {deleteTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <div
             className="absolute inset-0 bg-slate-900/50"
             onClick={() => {
@@ -220,7 +220,7 @@ export function AcademicCalendarManager({ entries }: AcademicCalendarManagerProp
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-calendar-title"
-            className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+            className="relative z-10 w-full max-w-sm rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-xl"
           >
             <h3 id="delete-calendar-title" className="text-base font-bold text-slate-900">
               Padam Catatan Takwim?
@@ -280,14 +280,14 @@ function CalendarModal({ entry, saving, error, onClose, onSubmit }: CalendarModa
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-40 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-hidden />
       <form
         onSubmit={handleSubmit}
         role="dialog"
         aria-modal="true"
         aria-labelledby="calendar-modal-title"
-        className="relative z-10 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+        className="relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-xl"
       >
         <h3 id="calendar-modal-title" className="text-base font-bold text-slate-900">
           {entry ? 'Sunting Catatan Takwim' : 'Tambah Catatan Takwim'}

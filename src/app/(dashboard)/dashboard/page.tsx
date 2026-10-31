@@ -90,6 +90,22 @@ function classifyAbsence(note: string | null): (typeof ABSENCE_LABELS)[number] {
   return 'Tanpa Sebab';
 }
 
+/**
+ * Bungkus pertanyaan Supabase supaya kegagalan satu jadual tidak
+ * meranapkan keseluruhan Papan Pemuka.
+ */
+async function safeQuery<T = never>(
+  query: PromiseLike<unknown>
+): Promise<{ data: T[] | null; error: null }> {
+  try {
+    const result = (await query) as { data?: unknown } | null;
+    const rows = result?.data;
+    return { data: Array.isArray(rows) ? (rows as T[]) : [], error: null };
+  } catch {
+    return { data: [], error: null };
+  }
+}
+
 export default async function DashboardPage() {
   const profile = await getCurrentUser();
   const tenantId = profile?.tenant_id ?? '';
@@ -113,62 +129,82 @@ export default async function DashboardPage() {
     teachersRes,
     classTeachersRes,
   ] = await Promise.all([
-    admin
-      .from('students')
-      .select('id, tenant_id, class_id, full_name')
-      .eq('tenant_id', tenantId)
-      .order('full_name'),
-    admin
-      .from('classes')
-      .select('id, tenant_id, class_name, year, created_at')
-      .eq('tenant_id', tenantId)
-      .order('class_name'),
-    admin
-      .from('daily_logs')
-      .select('student_id, teacher_id')
-      .eq('tenant_id', tenantId)
-      .eq('log_date', today),
-    admin
-      .from('announcements')
-      .select(
-        'id, tenant_id, title, content, target_class_id, created_by, created_at, is_pinned'
-      )
-      .eq('tenant_id', tenantId)
-      .order('is_pinned', { ascending: false })
-      .order('created_at', { ascending: false }),
-    admin
-      .from('academic_calendar')
-      .select('id, tenant_id, date, event_name, is_holiday, created_at')
-      .eq('tenant_id', tenantId)
-      .order('date', { ascending: true }),
-    admin
-      .from('attendance')
-      .select('student_id, status, catatan')
-      .eq('tenant_id', tenantId)
-      .eq('date', today),
-    admin
-      .from('attendance')
-      .select('date, status')
-      .eq('tenant_id', tenantId)
-      .gte('date', trendStart)
-      .lte('date', today),
-    admin
-      .from('daily_logs')
-      .select('log_date, student_id')
-      .eq('tenant_id', tenantId)
-      .gte('log_date', trendStart)
-      .lte('log_date', today),
-    admin
-      .from('users')
-      .select('id, tenant_id, full_name, role')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .in('role', ['teacher', 'admin_papn'])
-      .order('full_name'),
-    admin
-      .from('class_teachers')
-      .select('id, tenant_id, class_id, teacher_id, created_at')
-      .eq('tenant_id', tenantId),
+    safeQuery(
+      admin
+        .from('students')
+        .select('id, tenant_id, class_id, full_name')
+        .eq('tenant_id', tenantId)
+        .order('full_name')
+    ),
+    safeQuery(
+      admin
+        .from('classes')
+        .select('id, tenant_id, class_name, year, created_at')
+        .eq('tenant_id', tenantId)
+        .order('class_name')
+    ),
+    safeQuery(
+      admin
+        .from('daily_logs')
+        .select('student_id, teacher_id')
+        .eq('tenant_id', tenantId)
+        .eq('log_date', today)
+    ),
+    safeQuery(
+      admin
+        .from('announcements')
+        .select(
+          'id, tenant_id, title, content, target_class_id, created_by, created_at, is_pinned'
+        )
+        .eq('tenant_id', tenantId)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false })
+    ),
+    safeQuery(
+      admin
+        .from('academic_calendar')
+        .select('id, tenant_id, date, event_name, is_holiday, created_at')
+        .eq('tenant_id', tenantId)
+        .order('date', { ascending: true })
+    ),
+    safeQuery(
+      admin
+        .from('attendance')
+        .select('student_id, status, catatan')
+        .eq('tenant_id', tenantId)
+        .eq('date', today)
+    ),
+    safeQuery(
+      admin
+        .from('attendance')
+        .select('date, status')
+        .eq('tenant_id', tenantId)
+        .gte('date', trendStart)
+        .lte('date', today)
+    ),
+    safeQuery(
+      admin
+        .from('daily_logs')
+        .select('log_date, student_id')
+        .eq('tenant_id', tenantId)
+        .gte('log_date', trendStart)
+        .lte('log_date', today)
+    ),
+    safeQuery(
+      admin
+        .from('users')
+        .select('id, tenant_id, full_name, role')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .in('role', ['teacher', 'admin_papn'])
+        .order('full_name')
+    ),
+    safeQuery(
+      admin
+        .from('class_teachers')
+        .select('id, tenant_id, class_id, teacher_id, created_at')
+        .eq('tenant_id', tenantId)
+    ),
   ]);
 
   const students = (studentsRes.data ?? []) as Pick<
@@ -281,7 +317,8 @@ export default async function DashboardPage() {
   todayAttendance
     .filter((row) => row.status === 'Tidak Hadir')
     .forEach((row) => {
-      absenceCounts[classifyAbsence(row.catatan)] += 1;
+      const key = classifyAbsence(row.catatan);
+      absenceCounts[key] = (absenceCounts[key] ?? 0) + 1;
     });
   const absenceSlices: DistributionSlice[] = ABSENCE_LABELS.map((label) => ({
     label,
@@ -299,7 +336,7 @@ export default async function DashboardPage() {
 
     return {
       teacher_id: teacher.id,
-      teacher_name: teacher.full_name,
+      teacher_name: teacher.full_name ?? 'Tanpa Nama',
       class_names: assigned.length > 0 ? assigned.join(', ') : 'Belum ditugaskan',
       lengkap: teachersWithLogToday.has(teacher.id),
     };
@@ -347,7 +384,7 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Activity,
   BookOpenText,
@@ -105,6 +105,23 @@ export function AppShell({
   const adminItems =
     role === 'super_admin' || role === 'admin_papn' ? ADMIN_SECTION_ITEMS : [];
 
+  /** Tajuk laluan aktif (padanan paling spesifik) untuk pengepala mudah alih. */
+  const activeTitle = [...items, ...adminItems]
+    .filter(
+      (item) => pathname === item.href || pathname.startsWith(`${item.href}/`)
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0]?.label;
+
+  // Tutup laci mudah alih apabila pengguna menekan kekunci Escape.
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -171,14 +188,15 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Bar atas */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6">
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="btn-ghost -ml-2 px-2 lg:hidden"
+            className="btn-ghost -ml-2 min-h-touch px-2 md:hidden"
             aria-label={open ? 'Tutup menu' : 'Buka menu'}
             aria-expanded={open}
+            aria-controls="mobile-nav-drawer"
           >
             {open ? (
               <X className="h-5 w-5" aria-hidden />
@@ -187,7 +205,7 @@ export function AppShell({
             )}
           </button>
           {logoUrl ? (
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
               <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white">
                 <Image
                   src={logoUrl}
@@ -197,17 +215,25 @@ export function AppShell({
                   className="object-contain"
                 />
               </span>
-              <span className="text-sm font-bold text-slate-900 sm:text-base">
+              <span className="hidden text-sm font-bold text-slate-900 sm:inline sm:text-base">
                 {tenantName}
               </span>
             </Link>
           ) : (
-            <span className="text-sm font-bold text-slate-900 sm:text-base">
+            <span className="shrink-0 text-sm font-bold text-slate-900 sm:text-base">
               PERMATALog
             </span>
           )}
+          {activeTitle ? (
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="hidden h-4 w-px shrink-0 bg-slate-200 sm:block" aria-hidden />
+              <span className="truncate text-sm font-medium text-slate-600">
+                {activeTitle}
+              </span>
+            </span>
+          ) : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <div className="hidden text-right sm:block">
             <p className="text-sm font-semibold leading-tight text-slate-800">
               {fullName}
@@ -219,7 +245,7 @@ export function AppShell({
           <button
             type="button"
             onClick={handleSignOut}
-            className="btn-ghost px-2"
+            className="btn-ghost min-h-touch px-2"
             aria-label="Log keluar"
           >
             <LogOut className="h-5 w-5" aria-hidden />
@@ -229,27 +255,31 @@ export function AppShell({
 
       <div className="mx-auto flex w-full max-w-7xl">
         {/* Sidebar desktop */}
-        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 border-r border-slate-200 bg-white p-4 lg:block">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 border-r border-slate-200 bg-white p-4 md:block">
           {tenantHeading}
           {nav}
         </aside>
 
         {/* Drawer mudah alih */}
         {open ? (
-          <div className="fixed inset-0 z-20 lg:hidden">
+          <div className="fixed inset-0 z-20 md:hidden">
             <div
               className="absolute inset-0 bg-slate-900/40"
               onClick={() => setOpen(false)}
               aria-hidden
             />
-            <aside className="absolute left-0 top-14 h-[calc(100vh-3.5rem)] w-64 border-r border-slate-200 bg-white p-4">
+            <aside
+              id="mobile-nav-drawer"
+              aria-label="Navigasi mudah alih"
+              className="absolute left-0 top-14 h-[calc(100vh-3.5rem)] w-64 max-w-[85vw] overflow-y-auto border-r border-slate-200 bg-white p-4 shadow-xl"
+            >
               {tenantHeading}
               {nav}
             </aside>
           </div>
         ) : null}
 
-        <main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
