@@ -5,6 +5,8 @@ import { ArrowLeft } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import { LogSummaryCard } from '@/components/parent/log-summary-card';
+import { WeeklyLogDownload } from '@/components/parent/weekly-log-download';
+import { getCurrentWeekMonday } from '@/lib/week-window';
 import type { GroupedDailyReport } from '@/lib/types';
 
 export const metadata: Metadata = { title: 'Log Harian & Ulasan' };
@@ -34,24 +36,35 @@ export default async function ParentLogsPage() {
   );
 
   let rawLogs: any[] = [];
+  let students: { id: string; name: string }[] = [];
 
-  // 2. Semua log mentah bagi anak yang dipautkan.
+  // 2. Semua log mentah bagi anak yang dipautkan + senarai nama anak.
   if (studentIds.length > 0) {
-    const { data } = await supabase
-      .from('daily_logs')
-      .select(
-        `
+    const [logsRes, studentsRes] = await Promise.all([
+      supabase
+        .from('daily_logs')
+        .select(
+          `
         *,
         students (
           full_name
         )
       `
-      )
-      .in('student_id', studentIds)
-      .order('log_date', { ascending: false })
-      .order('created_at', { ascending: true });
+        )
+        .in('student_id', studentIds)
+        .order('log_date', { ascending: false })
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('students')
+        .select('id, full_name')
+        .in('id', studentIds)
+        .order('full_name', { ascending: true }),
+    ]);
 
-    rawLogs = data || [];
+    rawLogs = logsRes.data || [];
+    students = ((studentsRes.data ?? []) as { id: string; full_name: string }[]).map(
+      (row) => ({ id: row.id, name: row.full_name })
+    );
   }
 
   // 3. Kumpulkan log mengikut tarikh dan anak.
@@ -123,6 +136,8 @@ export default async function ParentLogsPage() {
           )}
         </div>
       </header>
+
+      <WeeklyLogDownload students={students} defaultWeekStart={getCurrentWeekMonday()} />
 
       {dailyReports.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">

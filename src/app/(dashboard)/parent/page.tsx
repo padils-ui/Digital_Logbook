@@ -13,10 +13,12 @@ import {
 } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import { WeeklyLogDownload } from '@/components/parent/weekly-log-download';
 import {
   formatDateShort,
   formatDateTimeMy,
   formatDayName,
+  getCurrentWeekMonday,
   getTodayIso,
 } from '@/lib/week-window';
 import type {
@@ -160,7 +162,7 @@ export default async function ParentDashboardPage() {
         ? supabase.from('classes').select('id, class_name').in('id', classIds)
         : Promise.resolve({ data: [] as { id: string; class_name: string }[] }),
       supabase.from('center_settings').select('center_name').maybeSingle(),
-      supabase.from('tenants').select('name, app_name').maybeSingle(),
+      supabase.from('tenants').select('name').maybeSingle(),
     ]);
 
   const attendanceByStudent = new Map<string, AttendanceRow>();
@@ -174,9 +176,9 @@ export default async function ParentDashboardPage() {
   }
 
   const centerSettings = settingsRes.data as { center_name: string | null } | null;
-  const tenant = tenantRes.data as { name: string | null; app_name: string | null } | null;
+  const tenant = tenantRes.data as { name: string | null } | null;
   const branchName =
-    centerSettings?.center_name || tenant?.app_name || tenant?.name || 'Pusat PAPN';
+    centerSettings?.center_name || tenant?.name || 'Pusat PAPN';
 
   // 3. Pengumuman — utamakan pengumuman tersemat, tapis mengikut kelas anak.
   const announcements = ((announcementRes.data ?? []) as Announcement[])
@@ -225,7 +227,7 @@ export default async function ParentDashboardPage() {
       tone: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300',
     },
     {
-      href: '/parent/logs',
+      href: '#muat-turun-log',
       label: 'Muat Turun Log Mingguan',
       description: 'Arkib log harian dan ulasan ibu bapa.',
       icon: Download,
@@ -254,6 +256,20 @@ export default async function ParentDashboardPage() {
           {branchName} · {formatDayName(todayIso)}, {formatDateShort(todayIso)}
         </p>
       </header>
+
+      {/* ── Muat Turun Log Mingguan (PDF) ────────────────────── */}
+      <section aria-labelledby="muat-turun-log">
+        <h2
+          id="muat-turun-log"
+          className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
+          Muat Turun Log Mingguan
+        </h2>
+        <WeeklyLogDownload
+          students={children.map((child) => ({ id: child.id, name: child.full_name }))}
+          defaultWeekStart={getCurrentWeekMonday()}
+        />
+      </section>
 
       {/* ── 1. Ringkasan Anak ───────────────────────────────── */}
       <section aria-labelledby="ringkasan-anak">
