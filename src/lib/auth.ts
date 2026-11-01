@@ -93,3 +93,58 @@ export function roleHome(role: UserRole): string {
       return '/parent';
   }
 }
+
+/**
+ * Awalan laluan yang dibenarkan bagi setiap peranan selepas log masuk.
+ * Digunakan untuk menapis `redirectTo` supaya pengguna tidak mendarat
+ * pada ruang yang bukan miliknya (contoh: ibu bapa → /profile).
+ */
+const ROLE_ALLOWED_PREFIXES: Record<UserRole, string[]> = {
+  super_admin: [
+    '/dashboard',
+    '/admin',
+    '/teacher',
+    '/profile-cards',
+    '/profile',
+    '/settings',
+  ],
+  admin_papn: [
+    '/dashboard',
+    '/admin',
+    '/teacher',
+    '/profile-cards',
+    '/profile',
+    '/settings',
+  ],
+  teacher: ['/teacher', '/profile-cards', '/profile', '/settings'],
+  // Ibu bapa sentiasa mendarat dalam ruang /parent — walaupun `redirectTo`
+  // menunjuk ke /profile (contoh selepas sesi tamat pada halaman itu).
+  parent: ['/parent'],
+};
+
+/**
+ * Menentukan laluan selepas log masuk.
+ *
+ * `redirectTo` hanya diterima jika ia laluan dalaman (bermula dengan '/')
+ * dan berada dalam ruang peranan tersebut. Jika tidak, pengguna dihantar ke
+ * rumah peranan — ibu bapa sentiasa mendarat di `/parent`.
+ */
+export function resolvePostLoginPath(
+  role: UserRole,
+  redirectTo?: string | null
+): string {
+  const home = roleHome(role);
+  if (!redirectTo || !redirectTo.startsWith('/') || redirectTo.startsWith('//')) {
+    return home;
+  }
+
+  // Buang query/hash sebelum semakan awalan.
+  const path = redirectTo.split(/[?#]/)[0] || '/';
+
+  const allowed = ROLE_ALLOWED_PREFIXES[role] ?? [];
+  const permitted = allowed.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+  );
+
+  return permitted ? redirectTo : home;
+}

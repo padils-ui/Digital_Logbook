@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ROLE_COOKIE, STATUS_COOKIE } from '@/middleware';
-import { roleHome } from '@/lib/auth';
+import { resolvePostLoginPath } from '@/lib/auth';
 import type { UserApprovalStatus, UserRole } from '@/lib/types';
 
 export interface LoginState {
@@ -214,6 +214,6 @@ export async function loginAction(
     return { redirectTo: '/pending-approval' };
   }
 
-  const destination = redirectTo && redirectTo.startsWith('/') ? redirectTo : roleHome(actualRole);
+  const destination = resolvePostLoginPath(actualRole, redirectTo);
   return { redirectTo: destination };
 }

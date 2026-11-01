@@ -66,11 +66,11 @@ const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
   parent: [
-    { href: '/parent', label: 'Papan Pemuka', icon: LayoutDashboard },
+    { href: '/parent', label: 'Dashboard Utama', icon: LayoutDashboard },
     { href: '/parent/today', label: 'Aktiviti Hari Ini', icon: Activity },
-    { href: '/parent/logs', label: 'Log & Ulasan', icon: FileText },
-    { href: '/parent/profile', label: 'Kad Profil Anak', icon: IdCard },
-    { href: '/profile', label: 'Kad Profil', icon: UserRound },
+    { href: '/parent/logs', label: 'Log Mingguan', icon: FileText },
+    { href: '/parent/profile', label: 'Kad Profil', icon: IdCard },
+    { href: '/profile', label: 'Akaun Saya', icon: UserRound },
     { href: '/settings', label: 'Tetapan', icon: Settings },
   ],
 };
@@ -140,10 +140,27 @@ export function AppShell({
     window.location.href = '/login';
   }
 
+  /**
+   * Item aktif jika laluan sepadan tepat, atau merupakan sub-laluan item —
+   * kecuali terdapat item lain yang lebih spesifik (cth. /parent dan
+   * /parent/today tidak boleh menyala serentak).
+   */
+  function isActive(item: NavItem) {
+    const all = [...items, ...adminItems];
+    const matches = (href: string) =>
+      pathname === href || pathname.startsWith(`${href}/`);
+    if (!matches(item.href)) return false;
+    return !all.some(
+      (other) =>
+        other.href !== item.href &&
+        other.href.length > item.href.length &&
+        matches(other.href)
+    );
+  }
+
   function renderItem(item: NavItem) {
     const Icon = item.icon;
-    const active =
-      pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const active = isActive(item);
     return (
       <Link
         key={item.href}
@@ -217,7 +234,10 @@ export function AppShell({
             )}
           </button>
           {logoUrl ? (
-            <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
+            <Link
+              href={items[0]?.href ?? '/dashboard'}
+              className="flex shrink-0 items-center gap-2"
+            >
               <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white">
                 <Image
                   src={logoUrl}

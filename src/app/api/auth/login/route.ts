@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ROLE_COOKIE, STATUS_COOKIE } from '@/middleware';
-import { roleHome } from '@/lib/auth';
+import { resolvePostLoginPath } from '@/lib/auth';
 import type { UserApprovalStatus, UserRole } from '@/lib/types';
 
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin_papn', 'teacher', 'parent'];
@@ -224,9 +224,7 @@ export async function POST(request: NextRequest) {
   const destination =
     approvalStatus === 'pending'
       ? '/pending-approval'
-      : redirectTo && redirectTo.startsWith('/')
-        ? redirectTo
-        : roleHome(actualRole);
+      : resolvePostLoginPath(actualRole, redirectTo);
 
   console.log('[api/auth/login] log masuk berjaya, peranan:', actualRole, '→', destination);
 
