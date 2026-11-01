@@ -103,35 +103,29 @@ export async function approveRegistration(
       };
     }
 
-    // Elak pautan berganda sedia ada.
-    const { data: existingLinks, error: linksError } = await admin
-      .from('parent_student_map')
-      .select('student_id')
-      .eq('tenant_id', tenantId)
-      .eq('parent_id', userId)
-      .in('student_id', uniqueIds);
-
-    if (linksError) {
-      return { ok: false, error: `Gagal menyemak pautan anak: ${linksError.message}` };
-    }
-
-    const linkedIds = new Set(
-      ((existingLinks ?? []) as { student_id: string }[]).map((l) => l.student_id)
-    );
-    const rows = uniqueIds
-      .filter((id) => !linkedIds.has(id))
-      .map((studentId) => ({
-        tenant_id: tenantId,
-        parent_id: userId,
-        student_id: studentId,
-        relationship_type: null,
-        is_primary: false,
-      }));
+    // `parent_student_map.relationship_type` ialah NOT NULL, jadi nilai
+    // eksplisit wajib dihantar. 'Penjaga' ialah pilihan paling umum dalam
+    // senarai hubungan yang digunakan oleh modul Ibu Bapa.
+    //
+    // Kunci unik sebenar jadual ialah (tenant_id, parent_id, student_id),
+    // maka ON CONFLICT mesti menyebut ketiga-tiga lajur. `ignoreDuplicates`
+    // menjana "ON CONFLICT (...) DO NOTHING" — meluluskan ibu bapa yang
+    // sudah dipautkan kepada anak yang sama tidak lagi melontar ralat.
+    const rows = uniqueIds.map((studentId) => ({
+      tenant_id: tenantId,
+      parent_id: userId,
+      student_id: studentId,
+      relationship_type: 'Penjaga',
+      is_primary: false,
+    }));
 
     if (rows.length > 0) {
       const { error: insertError } = await admin
         .from('parent_student_map')
-        .insert(rows);
+        .upsert(rows, {
+          onConflict: 'tenant_id,parent_id,student_id',
+          ignoreDuplicates: true,
+        });
 
       if (insertError) {
         return { ok: false, error: `Gagal memautkan anak: ${insertError.message}` };

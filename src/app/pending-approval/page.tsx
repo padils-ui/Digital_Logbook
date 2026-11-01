@@ -22,13 +22,27 @@ export default async function PendingApprovalPage() {
   // Akaun `pending` tidak mempunyai akses penyewa melalui RLS, jadi nama
   // pusat dibaca dengan klien service role.
   const admin = createAdminClient();
-  const { data: tenant } = await admin
-    .from('tenants')
-    .select('name, app_name')
-    .eq('id', profile.tenant_id)
-    .maybeSingle();
+  const [settingsRes, tenantRes] = await Promise.all([
+    admin
+      .from('center_settings')
+      .select('center_name')
+      .eq('tenant_id', profile.tenant_id)
+      .maybeSingle(),
+    admin
+      .from('tenants')
+      .select('name')
+      .eq('id', profile.tenant_id)
+      .maybeSingle(),
+  ]);
 
-  const centerName = tenant?.app_name || tenant?.name || 'pusat PAPN anda';
+  // Keutamaan: center_settings.center_name (nama rasmi pusat), kemudian
+  // tenants.name. app_name / tajuk aplikasi tidak digunakan kerana ia bukan
+  // nama pusat sebenar.
+  const centerName =
+    settingsRes.data?.center_name?.trim() ||
+    tenantRes.data?.name?.trim() ||
+    'pusat PAPN anda';
+
   const rejected = profile.status === 'rejected';
 
   return (
@@ -102,9 +116,8 @@ export default async function PendingApprovalPage() {
                 aria-hidden="true"
               />
               <p>
-                Anda akan dapat mengakses sistem setelah pentadbir pusat
-                meluluskan pendaftaran anda. Sila hubungi pentadbir PAPN{' '}
-                {centerName} jika kelulusan mengambil masa yang lama.
+                Sila hubungi pentadbir {centerName} jika kelulusan mengambil
+                masa yang lama.
               </p>
             </div>
           )}

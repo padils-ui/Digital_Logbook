@@ -67,9 +67,12 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8"
+    >
       <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-slate-700">
+        <legend className="text-sm font-semibold text-slate-700 dark:text-slate-300">
           Daftar Sebagai
         </legend>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -84,19 +87,23 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
                 aria-pressed={active}
                 className={`flex min-h-touch items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${
                   active
-                    ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-300'
-                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                    ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-300 dark:border-brand-500 dark:bg-brand-950/50 dark:ring-brand-800'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
                 }`}
               >
                 <Icon
-                  className={`h-5 w-5 shrink-0 ${active ? 'text-brand-600' : 'text-slate-400'}`}
+                  className={`h-5 w-5 shrink-0 ${
+                    active
+                      ? 'text-brand-600 dark:text-brand-400'
+                      : 'text-slate-400 dark:text-slate-500'
+                  }`}
                   aria-hidden
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-slate-800">
+                  <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">
                     {item.label}
                   </span>
-                  <span className="block truncate text-xs text-slate-500">
+                  <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
                     {item.description}
                   </span>
                 </span>
@@ -108,12 +115,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
       </fieldset>
 
       <div className="space-y-1">
-        <label htmlFor="full_name" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="full_name"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           Nama Penuh
         </label>
         <div className="relative">
           <UserRound
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <input
@@ -129,12 +139,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="email" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="email"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           E-mel
         </label>
         <div className="relative">
           <Mail
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <input
@@ -151,12 +164,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-semibold text-slate-700">
+          <label
+            htmlFor="password"
+            className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+          >
             Kata Laluan
           </label>
           <div className="relative">
             <Lock
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
               aria-hidden
             />
             <input
@@ -173,12 +189,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="confirm_password" className="text-sm font-semibold text-slate-700">
+          <label
+            htmlFor="confirm_password"
+            className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+          >
             Sahkan Kata Laluan
           </label>
           <div className="relative">
             <Lock
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
               aria-hidden
             />
             <input
@@ -196,12 +215,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="tenant_id" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="tenant_id"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           Pusat PAPN
         </label>
         <div className="relative">
           <Building2
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <select
@@ -225,12 +247,15 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
       </div>
 
       <div className="space-y-1">
-        <label htmlFor="access_code" className="text-sm font-semibold text-slate-700">
+        <label
+          htmlFor="access_code"
+          className="text-sm font-semibold text-slate-700 dark:text-slate-300"
+        >
           Kod Akses Pusat
         </label>
         <div className="relative">
           <KeyRound
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             aria-hidden
           />
           <input
@@ -245,7 +270,7 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
             className="input pl-9 uppercase"
           />
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Dapatkan kod ini daripada pentadbir pusat PAPN anda.
         </p>
       </div>
@@ -253,7 +278,7 @@ export function SignupForm({ centers }: { centers: CenterOption[] }) {
       {error && (
         <p
           role="alert"
-          className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 border border-red-200"
+          className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           {error}

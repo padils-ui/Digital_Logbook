@@ -18,7 +18,7 @@ export default async function AdminApprovalsPage() {
 
   // Klien admin memintas RLS — setiap pertanyaan tetap ditapis tenant_id.
   const admin = createAdminClient();
-  const [pendingRes, studentsRes, tenantRes] = await Promise.all([
+  const [pendingRes, studentsRes, settingsRes, tenantRes] = await Promise.all([
     admin
       .from('users')
       .select('id, full_name, email, role, tenant_id, status, created_at')
@@ -31,18 +31,23 @@ export default async function AdminApprovalsPage() {
       .eq('tenant_id', tenantId)
       .order('full_name'),
     admin
+      .from('center_settings')
+      .select('center_name')
+      .eq('tenant_id', tenantId)
+      .maybeSingle(),
+    admin
       .from('tenants')
-      .select('id, name, app_name')
+      .select('name')
       .eq('id', tenantId)
       .maybeSingle(),
   ]);
 
-  const tenant = tenantRes.data as {
-    id: string;
-    name: string;
-    app_name: string | null;
-  } | null;
-  const centerName = tenant?.app_name || tenant?.name || 'Pusat PAPN';
+  // Nama pusat sebenar sahaja: center_settings.center_name, kemudian
+  // tenants.name. app_name / tajuk aplikasi tidak digunakan.
+  const centerName =
+    settingsRes.data?.center_name?.trim() ||
+    tenantRes.data?.name?.trim() ||
+    'Pusat PAPN';
 
   const rows = (pendingRes.data ?? []) as Omit<PendingApprovalRow, 'center_name'>[];
   const approvals: PendingApprovalRow[] = rows.map((row) => ({

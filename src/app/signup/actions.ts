@@ -18,6 +18,18 @@ const SIGNUP_ROLES: UserRole[] = ['parent', 'teacher'];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Corak ralat pengesahan e-mel yang dipulangkan oleh Supabase Auth.
+ * Supabase boleh menolak e-mel walaupun ia lulus `EMAIL_PATTERN` (contohnya
+ * domain tidak sah atau aksara tersembunyi), jadi ralat ini dipetakan kepada
+ * mesej Bahasa Melayu yang mudah difahami.
+ */
+const EMAIL_ERROR_PATTERN =
+  /invalid email|email.{0,40}(invalid|not valid|malformed)|unable to validate email|email_address_invalid|validation_failed/i;
+
+const EMAIL_HELP_MESSAGE =
+  'Sila pastikan format e-mel adalah betul dan tiada ruang kosong.';
+
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 /** Bandingkan kod akses tanpa mengira huruf besar/kecil dan ruang tepi. */
@@ -136,6 +148,12 @@ export async function registerAction(formData: FormData): Promise<SignupState> {
       return {
         error: 'E-mel ini telah didaftarkan. Sila log masuk atau hubungi pentadbir PAPN.',
       };
+    }
+    if (
+      signUpError.code === 'email_address_invalid' ||
+      EMAIL_ERROR_PATTERN.test(signUpError.message)
+    ) {
+      return { error: EMAIL_HELP_MESSAGE };
     }
     return {
       error: `Pendaftaran gagal: ${signUpError.message}`,
